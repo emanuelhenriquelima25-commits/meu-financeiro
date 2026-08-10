@@ -1,1232 +1,866 @@
-/* =========================================================
+/*
+=========================================================
 MEU FINANCEIRO
-APP.JS COMPLETO
-========================================================= */
+APP.JS
+=========================================================
+*/
 
-/* =========================================================
-SUPABASE
-========================================================= */
 
-const SUPABASE_URL =
-"https://sndpfgxqwsvacsimpszk.supabase.co";
+/* ======================================================
+   CONFIGURAÇÃO
+====================================================== */
 
-const SUPABASE_ANON_KEY =
-"sb_publishable_xFvJISqAURUFO7u0ns93Kg_mg-bOv7g";
+const db = window.db;
 
-const sb = supabase.createClient(
-SUPABASE_URL,
-SUPABASE_ANON_KEY
-);
+if (!db) {
+  console.error("Supabase não inicializado.");
+}
 
-/* =========================================================
-VARIÁVEIS
-========================================================= */
 
-let user = null;
+/* ======================================================
+   ESTADO
+====================================================== */
 
-let cats = [];
+let currentUser = null;
+let transactions = [];
 let accounts = [];
 let cards = [];
-let recurring = [];
 let goals = [];
-let txs = [];
+let recurring = [];
+let categories = [];
 
 let flowChart = null;
-let catChart = null;
-
-let editingTx = false;
-
-/* =========================================================
-HELPERS
-========================================================= */
-
-const $ = id =>
-document.getElementById(id);
-
-const today =
-new Date().toISOString().slice(0, 10);
-
-const thisMonth =
-today.slice(0, 7);
-
-const money = n =>
-Number(n || 0).toLocaleString(
-"pt-BR",
-{
-style: "currency",
-currency: "BRL"
-}
-);
-
-const esc = s =>
-String(s ?? "").replace(
-/[&<>"']/g,
-m =>
-({
-"&": "&",
-"<": "<",
-">": ">",
-'"': """,
-"'": "'"
-})[m]
-);
-
-function msg(id, text) {
-
-const el = $(id);
-
-if (el) {
-el.textContent = text || "";
-}
-
-}
-
-/* =========================================================
-INICIALIZAÇÃO
-========================================================= */
-
-document.addEventListener(
-"DOMContentLoaded",
-async () => {
-
-console.log(
-  "Meu Financeiro iniciando..."
-);
+let catsChart = null;
 
 
-/* Datas */
+/* ======================================================
+   HELPERS
+====================================================== */
 
-if ($("dashMonth")) {
-  $("dashMonth").value =
-    thisMonth;
-}
+const $ = id => document.getElementById(id);
 
-if ($("reportMonth")) {
-  $("reportMonth").value =
-    thisMonth;
-}
+function money(value) {
 
-if ($("txDate")) {
-  $("txDate").value =
-    today;
-}
-
-
-/* Formulários */
-
-$("loginForm").onsubmit =
-  login;
-
-$("signupForm").onsubmit =
-  signup;
-
-$("txForm").onsubmit =
-  saveTx;
-
-$("cardForm").onsubmit =
-  saveCard;
-
-$("recForm").onsubmit =
-  saveRec;
-
-$("goalForm").onsubmit =
-  saveGoal;
-
-$("accountForm").onsubmit =
-  saveAccount;
-
-
-/* Botões */
-
-$("logout").onclick =
-  logout;
-
-$("txCancelEdit").onclick =
-  cancelEdit;
-
-
-/* Filtros */
-
-$("dashMonth").onchange =
-  dashboard;
-
-$("reportMonth").onchange =
-  report;
-
-
-/* Exportação */
-
-$("excel").onclick =
-  excel;
-
-$("pdf").onclick =
-  pdf;
-
-
-/* Navegação */
-
-document
-  .querySelectorAll(
-    "nav button"
-  )
-  .forEach(button => {
-
-    button.onclick = () =>
-      page(
-        button.dataset.page
-      );
-
-  });
-
-
-/* =====================================================
-   VERIFICAR SESSÃO
-===================================================== */
-
-try {
-
-  const result =
-    await sb.auth.getSession();
-
-  console.log(
-    "Sessão:",
-    result.data?.session
-      ? "encontrada"
-      : "não encontrada"
+  return Number(value || 0).toLocaleString(
+    "pt-BR",
+    {
+      style: "currency",
+      currency: "BRL"
+    }
   );
 
+}
 
-  if (
-    result.data &&
-    result.data.session
-  ) {
 
-    await start(
-      result.data.session.user
-    );
+function todayISO() {
 
-  } else {
-
-    loginView();
-
-  }
-
-} catch (error) {
-
-  console.error(
-    "Erro ao verificar sessão:",
-    error
-  );
-
-  loginView();
+  return new Date()
+    .toISOString()
+    .slice(0, 10);
 
 }
 
 
-/* =====================================================
-   OBSERVAR LOGIN / LOGOUT
-===================================================== */
+function currentMonth() {
 
-sb.auth.onAuthStateChange(
-  async (
-    event,
-    session
-  ) => {
+  return new Date()
+    .toISOString()
+    .slice(0, 7);
 
-    console.log(
-      "Auth:",
-      event
-    );
+}
 
 
-    if (session?.user) {
+function escapeHTML(value) {
 
-      await start(
-        session.user
-      );
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+}
+
+
+function showMessage(id, message, error = false) {
+
+  const element = $(id);
+
+  if (!element) return;
+
+  element.textContent = message;
+  element.style.color = error ? "#c62828" : "#2e7d32";
+
+}
+
+
+function showLogin() {
+
+  $("loginView")?.classList.remove("hidden");
+  $("app")?.classList.add("hidden");
+
+}
+
+
+function showApp() {
+
+  $("loginView")?.classList.add("hidden");
+  $("app")?.classList.remove("hidden");
+
+}
+
+
+function getMonthRange(month) {
+
+  const start = `${month}-01`;
+
+  const [year, mon] = month
+    .split("-")
+    .map(Number);
+
+  const lastDay = new Date(
+    year,
+    mon,
+    0
+  ).getDate();
+
+  const end =
+    `${month}-${String(lastDay).padStart(2, "0")}`;
+
+  return {
+    start,
+    end
+  };
+
+}
+
+
+/* ======================================================
+   LOGIN
+====================================================== */
+
+async function initAuth() {
+
+  if (!db) return;
+
+  try {
+
+    const {
+      data,
+      error
+    } = await db.auth.getSession();
+
+    if (error) {
+      console.error(error);
+      showLogin();
+      return;
+    }
+
+    if (data?.session?.user) {
+
+      currentUser =
+        data.session.user;
+
+      await enterApplication();
 
     } else {
 
-      user = null;
-
-      loginView();
+      showLogin();
 
     }
 
+  } catch (error) {
+
+    console.error(
+      "Erro ao verificar sessão:",
+      error
+    );
+
+    showLogin();
+
   }
-);
-
-}
-);
-
-/* =========================================================
-LOGIN VIEW
-========================================================= */
-
-function loginView() {
-
-const login =
-$("loginView");
-
-const app =
-$("app");
-
-if (login) {
-
-login.classList.remove(
-  "hidden"
-);
-
-}
-
-if (app) {
-
-app.classList.add(
-  "hidden"
-);
-
-}
-
-}
-
-/* =========================================================
-APP VIEW
-========================================================= */
-
-function appView() {
-
-const login =
-$("loginView");
-
-const app =
-$("app");
-
-if (login) {
-
-login.classList.add(
-  "hidden"
-);
-
-}
-
-if (app) {
-
-app.classList.remove(
-  "hidden"
-);
-
-}
-
-}
-
-/* =========================================================
-LOGIN
-========================================================= */
-
-async function login(e) {
-
-e.preventDefault();
-
-msg(
-"authMsg",
-"Entrando..."
-);
-
-const email =
-$("loginEmail")
-.value
-.trim();
-
-const password =
-$("loginPassword")
-.value;
-
-try {
-
-const result =
-  await sb.auth.signInWithPassword({
-    email,
-    password
-  });
 
 
-if (result.error) {
+  db.auth.onAuthStateChange(
+    async (event, session) => {
 
-  console.error(
-    "Erro login:",
-    result.error
-  );
+      console.log(
+        "Auth:",
+        event
+      );
 
-  msg(
-    "authMsg",
-    result.error.message
-  );
+      if (session?.user) {
 
-  return;
+        currentUser =
+          session.user;
 
-}
+        await enterApplication();
 
+      } else {
 
-msg(
-  "authMsg",
-  "Login realizado. Carregando..."
-);
+        currentUser = null;
 
+        showLogin();
 
-if (result.data?.user) {
-
-  await start(
-    result.data.user
-  );
-
-}
-
-} catch (error) {
-
-console.error(
-  error
-);
-
-msg(
-  "authMsg",
-  "Erro ao entrar. Tente novamente."
-);
-
-}
-
-}
-
-/* =========================================================
-CADASTRO
-========================================================= */
-
-async function signup(e) {
-
-e.preventDefault();
-
-msg(
-"authMsg",
-"Criando conta..."
-);
-
-const name =
-$("signupName")
-.value
-.trim();
-
-const email =
-$("signupEmail")
-.value
-.trim();
-
-const password =
-$("signupPassword")
-.value;
-
-try {
-
-const result =
-  await sb.auth.signUp({
-
-    email,
-
-    password,
-
-    options: {
-
-      data: {
-        name
       }
 
     }
+  );
 
-  });
+}
 
 
-if (result.error) {
+/* ======================================================
+   LOGIN
+====================================================== */
 
-  msg(
+async function login(event) {
+
+  event.preventDefault();
+
+  const email =
+    $("loginEmail").value.trim();
+
+  const password =
+    $("loginPassword").value;
+
+  showMessage(
     "authMsg",
-    result.error.message
+    "Entrando..."
   );
 
-  return;
+  try {
+
+    const {
+      data,
+      error
+    } = await db.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+
+      console.error(error);
+
+      showMessage(
+        "authMsg",
+        traduzAuthError(error),
+        true
+      );
+
+      return;
+
+    }
+
+    if (!data?.session) {
+
+      showMessage(
+        "authMsg",
+        "Login realizado, mas a sessão não foi criada.",
+        true
+      );
+
+      return;
+
+    }
+
+    currentUser =
+      data.user;
+
+    await enterApplication();
+
+  } catch (error) {
+
+    console.error(error);
+
+    showMessage(
+      "authMsg",
+      error.message || "Erro ao entrar.",
+      true
+    );
+
+  }
 
 }
 
 
-if (
-  result.data?.session &&
-  result.data?.user
-) {
+/* ======================================================
+   CADASTRO
+====================================================== */
 
-  await start(
-    result.data.user
-  );
+async function signup(event) {
 
-} else {
+  event.preventDefault();
 
-  msg(
+  const name =
+    $("signupName").value.trim();
+
+  const email =
+    $("signupEmail").value.trim();
+
+  const password =
+    $("signupPassword").value;
+
+  showMessage(
     "authMsg",
-    "Conta criada. Verifique seu e-mail para confirmar o cadastro."
+    "Criando conta..."
   );
 
+  try {
+
+    const {
+      data,
+      error
+    } = await db.auth.signUp({
+
+      email,
+      password,
+
+      options: {
+        data: {
+          name
+        }
+      }
+
+    });
+
+
+    if (error) {
+
+      console.error(error);
+
+      showMessage(
+        "authMsg",
+        traduzAuthError(error),
+        true
+      );
+
+      return;
+
+    }
+
+
+    /*
+      Caso a confirmação de e-mail
+      esteja desligada no Supabase,
+      a sessão já estará disponível.
+    */
+
+    if (data?.session) {
+
+      currentUser =
+        data.user;
+
+      await enterApplication();
+
+      return;
+
+    }
+
+
+    showMessage(
+      "authMsg",
+      "Conta criada. Verifique seu e-mail para confirmar o cadastro."
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    showMessage(
+      "authMsg",
+      error.message || "Erro ao criar conta.",
+      true
+    );
+
+  }
+
 }
 
-} catch (error) {
 
-console.error(
-  error
-);
+/* ======================================================
+   TRADUÇÃO DE ERROS DO AUTH
+====================================================== */
 
-msg(
-  "authMsg",
-  "Erro ao criar conta."
-);
+function traduzAuthError(error) {
+
+  const message =
+    String(error?.message || "");
+
+  if (
+    message.toLowerCase().includes(
+      "invalid login credentials"
+    )
+  ) {
+
+    return "E-mail ou senha incorretos.";
+
+  }
+
+  if (
+    message.toLowerCase().includes(
+      "email not confirmed"
+    )
+  ) {
+
+    return "Seu e-mail ainda não foi confirmado.";
+
+  }
+
+  if (
+    message.toLowerCase().includes(
+      "user already registered"
+    )
+  ) {
+
+    return "Este e-mail já está cadastrado.";
+
+  }
+
+  if (
+    message.toLowerCase().includes(
+      "password should be at least"
+    )
+  ) {
+
+    return "A senha precisa ter pelo menos 6 caracteres.";
+
+  }
+
+  return message || "Não foi possível realizar a operação.";
 
 }
 
+
+/* ======================================================
+   ENTRAR NA APLICAÇÃO
+====================================================== */
+
+async function enterApplication() {
+
+  showApp();
+
+  $("userName").textContent =
+    currentUser?.user_metadata?.name ||
+    currentUser?.email ||
+    "";
+
+  if (!$("dashMonth").value) {
+    $("dashMonth").value =
+      currentMonth();
+  }
+
+  if (!$("reportMonth").value) {
+    $("reportMonth").value =
+      currentMonth();
+  }
+
+  if (!$("txDate").value) {
+    $("txDate").value =
+      todayISO();
+  }
+
+  await loadAll();
+
 }
 
-/* =========================================================
-LOGOUT
-========================================================= */
+
+/* ======================================================
+   LOGOUT
+====================================================== */
 
 async function logout() {
 
-try {
+  try {
 
-await sb.auth.signOut();
+    await db.auth.signOut();
 
-} catch (error) {
+    currentUser = null;
 
-console.error(
-  error
-);
+    showLogin();
 
-}
+  } catch (error) {
 
-}
-
-/* =========================================================
-START
-========================================================= */
-
-async function start(u) {
-
-if (!u?.id) {
-
-loginView();
-
-return;
-
-}
-
-user = u;
-
-/*
-IMPORTANTE:
-
- Primeiro mostramos o aplicativo.
- Assim, se alguma tabela tiver problema
- de RLS, o usuário NÃO fica preso
- na tela de login.
-
-*/
-
-appView();
-
-$("userName").textContent =
-u.user_metadata?.name ||
-u.email ||
-"Usuário";
-
-/* =====================================================
-PERFIL
-===================================================== */
-
-try {
-
-const profile =
-  await sb
-    .from("profiles")
-    .select("*")
-    .eq("id", u.id)
-    .maybeSingle();
-
-
-if (
-  !profile.error &&
-  profile.data?.name
-) {
-
-  $("userName").textContent =
-    profile.data.name;
-
-}
-
-} catch (error) {
-
-console.warn(
-  "Não foi possível carregar perfil:",
-  error
-);
-
-}
-
-/* =====================================================
-CARREGAR DADOS
-===================================================== */
-
-try {
-
-await load();
-
-} catch (error) {
-
-console.error(
-  "Erro ao carregar dados:",
-  error
-);
-
-}
-
-page(
-"dashboard"
-);
-
-}
-
-/* =========================================================
-LOAD
-========================================================= */
-
-async function load() {
-
-if (!user?.id) {
-return;
-}
-
-const [
-categoriesResult,
-accountsResult,
-cardsResult,
-recurringResult,
-goalsResult,
-transactionsResult
-] = await Promise.all([
-
-sb
-  .from("categories")
-  .select("*")
-  .order("name"),
-
-sb
-  .from("accounts")
-  .select("*")
-  .order("name"),
-
-sb
-  .from("cards")
-  .select("*")
-  .order("name"),
-
-sb
-  .from("recurring")
-  .select(
-    "*,categories(name)"
-  )
-  .order("description"),
-
-sb
-  .from("goals")
-  .select("*")
-  .order(
-    "created_at",
-    {
-      ascending: false
-    }
-  ),
-
-sb
-  .from("transactions")
-  .select(
-    "*,categories(name),accounts(name),cards(name)"
-  )
-  .order(
-    "transaction_date",
-    {
-      ascending: false
-    }
-  )
-  .limit(3000)
-
-]);
-
-/* =====================================================
-DADOS
-===================================================== */
-
-cats =
-categoriesResult.data || [];
-
-accounts =
-accountsResult.data || [];
-
-cards =
-cardsResult.data || [];
-
-recurring =
-recurringResult.data || [];
-
-goals =
-goalsResult.data || [];
-
-txs =
-transactionsResult.data || [];
-
-/* =====================================================
-ERROS
-===================================================== */
-
-if (categoriesResult.error) {
-
-console.error(
-  "Categorias:",
-  categoriesResult.error
-);
-
-}
-
-if (accountsResult.error) {
-
-console.error(
-  "Contas:",
-  accountsResult.error
-);
-
-}
-
-if (cardsResult.error) {
-
-console.error(
-  "Cartões:",
-  cardsResult.error
-);
-
-}
-
-if (recurringResult.error) {
-
-console.error(
-  "Recorrentes:",
-  recurringResult.error
-);
-
-}
-
-if (goalsResult.error) {
-
-console.error(
-  "Metas:",
-  goalsResult.error
-);
-
-}
-
-if (transactionsResult.error) {
-
-console.error(
-  "Transações:",
-  transactionsResult.error
-);
-
-}
-
-/* =====================================================
-CRIAR CATEGORIAS
-===================================================== */
-
-if (
-cats.length === 0 &&
-!categoriesResult.error
-) {
-
-try {
-
-  const seed =
-    await sb.rpc(
-      "seed_categories",
-      {
-        p_user: user.id
-      }
+    console.error(
+      "Erro ao sair:",
+      error
     );
-
-
-  if (!seed.error) {
-
-    const reload =
-      await sb
-        .from("categories")
-        .select("*")
-        .order("name");
-
-
-    cats =
-      reload.data || [];
 
   }
 
-} catch (error) {
+}
 
-  console.warn(
-    "Seed categorias:",
+
+/* ======================================================
+   LOAD GERAL
+====================================================== */
+
+async function loadAll() {
+
+  await Promise.all([
+    loadCategories(),
+    loadAccounts(),
+    loadCards(),
+    loadTransactions(),
+    loadGoals(),
+    loadRecurring()
+  ]);
+
+  populateSelects();
+
+  renderTransactions();
+  renderAccounts();
+  renderCards();
+  renderGoals();
+  renderRecurring();
+
+  updateDashboard();
+
+}
+
+
+/* ======================================================
+   CATEGORIAS
+====================================================== */
+
+async function loadCategories() {
+
+  try {
+
+    const {
+      data,
+      error
+    } = await db
+      .from("categories")
+      .select("*")
+      .order("name");
+
+    if (error) {
+
+      console.warn(
+        "Categorias:",
+        error.message
+      );
+
+      categories = [];
+
+      return;
+
+    }
+
+    categories = data || [];
+
+  } catch (error) {
+
+    console.warn(error);
+
+    categories = [];
+
+  }
+
+}
+
+
+/* ======================================================
+   CONTAS
+====================================================== */
+
+async function loadAccounts() {
+
+  const {
+    data,
     error
-  );
+  } = await db
+    .from("accounts")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("name");
+
+  if (error) {
+
+    console.error(error);
+
+    accounts = [];
+
+    return;
+
+  }
+
+  accounts = data || [];
 
 }
 
-}
 
-fill();
+/* ======================================================
+   CARTÕES
+====================================================== */
 
-render();
+async function loadCards() {
 
-}
+  const {
+    data,
+    error
+  } = await db
+    .from("cards")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("name");
 
-/* =========================================================
-PREENCHER SELECTS
-========================================================= */
+  if (error) {
 
-function fill() {
+    console.error(error);
 
-$("txCat").innerHTML =
-'<option value="">Selecione uma categoria</option>' +
-cats
-.map(
-c =>
-"<option value="${c.id}"> ${esc(c.name)} </option>"
-)
-.join("");
+    cards = [];
 
-$("recCat").innerHTML =
-'<option value="">Selecione uma categoria</option>' +
-cats
-.map(
-c =>
-"<option value="${c.id}"> ${esc(c.name)} </option>"
-)
-.join("");
+    return;
 
-$("txAccount").innerHTML =
-'<option value="">Selecione uma conta</option>' +
-accounts
-.map(
-a =>
-"<option value="${a.id}"> ${esc(a.name)} </option>"
-)
-.join("");
+  }
 
-$("txCard").innerHTML =
-'<option value="">Nenhum</option>' +
-cards
-.map(
-c =>
-"<option value="${c.id}"> ${esc(c.name)} </option>"
-)
-.join("");
+  cards = data || [];
 
 }
 
-/* =========================================================
-SALVAR LANÇAMENTO
-========================================================= */
 
-async function saveTx(e) {
+/* ======================================================
+   LANÇAMENTOS
+====================================================== */
 
-e.preventDefault();
+async function loadTransactions() {
 
-if (!user?.id) {
+  const {
+    data,
+    error
+  } = await db
+    .from("transactions")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("date", {
+      ascending: false
+    });
 
-msg(
-  "txMsg",
-  "Usuário não autenticado."
-);
+  if (error) {
 
-return;
+    console.error(error);
 
-}
+    transactions = [];
 
-/* =====================================================
-MODO EDIÇÃO
-===================================================== */
+    return;
 
-if (editingTx) {
+  }
 
-await updateTx();
-
-return;
-
-}
-
-const categoryId =
-$("txCat").value || null;
-
-const accountId =
-$("txAccount").value || null;
-
-const cardId =
-$("txCard").value || null;
-
-if (!categoryId) {
-
-msg(
-  "txMsg",
-  "Selecione uma categoria."
-);
-
-return;
+  transactions = data || [];
 
 }
 
-if (!accountId) {
 
-msg(
-  "txMsg",
-  "Selecione uma conta."
-);
+/* ======================================================
+   METAS
+====================================================== */
 
-return;
+async function loadGoals() {
 
-}
+  const {
+    data,
+    error
+  } = await db
+    .from("goals")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("created_at", {
+      ascending: false
+    });
 
-const amount =
-Number(
-$("txAmount").value
-);
+  if (error) {
 
-if (
-!amount ||
-amount <= 0
-) {
+    console.error(error);
 
-msg(
-  "txMsg",
-  "Informe um valor válido."
-);
+    goals = [];
 
-return;
+    return;
 
-}
+  }
 
-const description =
-$("txDesc")
-.value
-.trim();
-
-if (!description) {
-
-msg(
-  "txMsg",
-  "Informe uma descrição."
-);
-
-return;
+  goals = data || [];
 
 }
 
-const totalInstallments =
-Math.max(
-1,
-Number(
-$("txInstall").value
-) || 1
-);
 
-const groupId =
-crypto.randomUUID();
+/* ======================================================
+   RECORRENTES
+====================================================== */
 
-const base = {
+async function loadRecurring() {
 
-user_id:
-  user.id,
+  const {
+    data,
+    error
+  } = await db
+    .from("recurring")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("description");
 
-type:
-  $("txType").value,
+  if (error) {
 
-amount,
+    console.error(error);
 
-category_id:
-  categoryId,
+    recurring = [];
 
-account_id:
-  accountId,
+    return;
 
-card_id:
-  cardId,
+  }
 
-status:
-  $("txStatus").value,
-
-description,
-
-notes:
-  $("txNotes")
-    .value
-    .trim() || null,
-
-group_id:
-  groupId
-
-};
-
-const rows = [];
-
-for (
-let i = 0;
-i < totalInstallments;
-i++
-) {
-
-const date =
-  new Date(
-    $("txDate").value +
-    "T12:00:00"
-  );
-
-
-date.setMonth(
-  date.getMonth() + i
-);
-
-
-rows.push({
-
-  ...base,
-
-  transaction_date:
-    date
-      .toISOString()
-      .slice(0, 10),
-
-  installment_number:
-    i + 1,
-
-  installment_total:
-    totalInstallments
-
-});
+  recurring = data || [];
 
 }
 
-msg(
-"txMsg",
-"Salvando..."
-);
 
-const result =
-await sb
-.from("transactions")
-.insert(rows);
+/* ======================================================
+   SELECTS
+====================================================== */
 
-if (result.error) {
+function populateSelects() {
 
-console.error(
-  result.error
-);
+  const catSelect =
+    $("txCat");
 
-msg(
-  "txMsg",
-  result.error.message
-);
+  const recCat =
+    $("recCat");
 
-return;
+  const accountSelect =
+    $("txAccount");
 
-}
+  const cardSelect =
+    $("txCard");
 
-msg(
-"txMsg",
-"Lançamento salvo com sucesso!"
-);
 
-$("txForm").reset();
+  if (catSelect) {
 
-$("txDate").value =
-today;
+    catSelect.innerHTML =
+      `<option value="">Selecione</option>`;
 
-$("txInstall").value =
-1;
+    categories.forEach(category => {
 
-await load();
+      catSelect.innerHTML += `
+        <option value="${escapeHTML(category.id)}">
+          ${escapeHTML(
+            category.name ||
+            category.nome ||
+            ""
+          )}
+        </option>
+      `;
 
-}
+    });
 
-/* =========================================================
-EDITAR LANÇAMENTO
-========================================================= */
+  }
 
-async function editTx(id) {
 
-const tx =
-txs.find(
-t => t.id === id
-);
+  if (recCat) {
 
-if (!tx) {
+    recCat.innerHTML =
+      `<option value="">Selecione</option>`;
 
-alert(
-  "Lançamento não encontrado."
-);
+    categories.forEach(category => {
 
-return;
+      recCat.innerHTML += `
+        <option value="${escapeHTML(category.id)}">
+          ${escapeHTML(
+            category.name ||
+            category.nome ||
+            ""
+          )}
+        </option>
+      `;
 
-}
+    });
 
-editingTx = true;
+  }
 
-$("txId").value =
-tx.id;
 
-$("txType").value =
-tx.type || "saida";
+  if (accountSelect) {
 
-$("txAmount").value =
-tx.amount;
+    accountSelect.innerHTML =
+      `<option value="">Selecione</option>`;
 
-$("txDate").value =
-tx.transaction_date;
+    accounts.forEach(account => {
 
-$("txCat").value =
-tx.category_id || "";
+      accountSelect.innerHTML += `
+        <option value="${escapeHTML(account.id)}">
+          ${escapeHTML(account.name)}
+        </option>
+      `;
 
-$("txAccount").value =
-tx.account_id || "";
+    });
 
-$("txCard").value =
-tx.card_id || "";
+  }
 
-$("txStatus").value =
-tx.status || "pago";
 
-$("txDesc").value =
-tx.description || "";
+  if (cardSelect) {
 
-$("txInstall").value =
-tx.installment_total || 1;
+    cardSelect.innerHTML =
+      `<option value="">Nenhum</option>`;
 
-$("txNotes").value =
-tx.notes || "";
+    cards.forEach(card => {
 
-$("txSaveButton").textContent =
-"Salvar alterações";
+      cardSelect.innerHTML += `
+        <option value="${escapeHTML(card.id)}">
+          ${escapeHTML(card.name)}
+        </option>
+      `;
 
-$("txCancelEdit")
-.classList
-.remove("hidden");
+    });
 
-msg(
-"txMsg",
-"Editando lançamento..."
-);
-
-page(
-"lancamentos"
-);
-
-window.scrollTo({
-top: 0,
-behavior: "smooth"
-});
+  }
 
 }
 
-/* =========================================================
-ATUALIZAR LANÇAMENTO
-========================================================= */
 
-async function updateTx() {
+/* ======================================================
+   LANÇAMENTO - SALVAR / EDITAR
+====================================================== */
 
-const id =
-$("txId").value;
+async function saveTransaction(event) {
 
-if (!id) {
+  event.preventDefault();
 
-cancelEdit();
+  if (!currentUser) {
 
-return;
+    showMessage(
+      "txMsg",
+      "Faça login novamente.",
+      true
+    );
 
-}
+    return;
 
-const categoryId =
-$("txCat").value || null;
+  }
 
-const accountId =
-$("txAccount").value || null;
 
-if (!categoryId) {
+  const id =
+    $("txId").value.trim();
 
-msg(
-  "txMsg",
-  "Selecione uma categoria."
-);
 
-return;
+  const payload = {
 
-}
-
-if (!accountId) {
-
-msg(
-  "txMsg",
-  "Selecione uma conta."
-);
-
-return;
-
-}
-
-const amount =
-Number(
-$("txAmount").value
-);
-
-if (
-!amount ||
-amount <= 0
-) {
-
-msg(
-  "txMsg",
-  "Informe um valor válido."
-);
-
-return;
-
-}
-
-msg(
-"txMsg",
-"Salvando alterações..."
-);
-
-const result =
-await sb
-.from("transactions")
-.update({
+    user_id:
+      currentUser.id,
 
     type:
       $("txType").value,
 
-    amount,
+    amount:
+      Number($("txAmount").value),
 
-    transaction_date:
+    date:
       $("txDate").value,
 
     category_id:
-      categoryId,
+      $("txCat").value || null,
 
     account_id:
-      accountId,
+      $("txAccount").value || null,
 
     card_id:
       $("txCard").value || null,
@@ -1235,1547 +869,1954 @@ await sb
       $("txStatus").value,
 
     description:
-      $("txDesc")
-        .value
-        .trim(),
+      $("txDesc").value.trim(),
+
+    installments:
+      Number($("txInstall").value || 1),
 
     notes:
-      $("txNotes")
-        .value
-        .trim() || null
+      $("txNotes").value.trim()
 
-  })
-  .eq(
-    "id",
-    id
-  )
-  .eq(
-    "user_id",
-    user.id
-  );
-
-if (result.error) {
-
-console.error(
-  "Erro ao editar:",
-  result.error
-);
-
-msg(
-  "txMsg",
-  result.error.message
-);
-
-return;
-
-}
-
-msg(
-"txMsg",
-"Lançamento alterado com sucesso!"
-);
-
-cancelEdit(
-false
-);
-
-await load();
-
-}
-
-/* =========================================================
-CANCELAR EDIÇÃO
-========================================================= */
-
-function cancelEdit(
-showMessage = true
-) {
-
-editingTx =
-false;
-
-$("txId").value =
-"";
-
-$("txForm").reset();
-
-$("txDate").value =
-today;
-
-$("txInstall").value =
-1;
-
-$("txSaveButton").textContent =
-"Salvar lançamento";
-
-$("txCancelEdit")
-.classList
-.add("hidden");
-
-if (showMessage) {
-
-msg(
-  "txMsg",
-  ""
-);
-
-}
-
-}
-
-/* =========================================================
-EXCLUIR LANÇAMENTO
-========================================================= */
-
-async function deleteTx(id) {
-
-const tx =
-txs.find(
-t => t.id === id
-);
-
-if (!tx) {
-
-alert(
-  "Lançamento não encontrado."
-);
-
-return;
-
-}
-
-const isInstallment =
-Number(
-tx.installment_total
-) > 1;
-
-let question =
-"Excluir o lançamento "${tx.description}" de ${money(tx.amount)}?";
-
-if (isInstallment) {
-
-question +=
-  "\n\nEste lançamento faz parte de um parcelamento.";
-
-}
-
-const confirmed =
-confirm(
-question
-);
-
-if (!confirmed) {
-return;
-}
-
-try {
-
-let result;
-
-
-/*
-   Se for parcela, excluímos somente
-   a parcela selecionada.
-*/
-
-result =
-  await sb
-    .from("transactions")
-    .delete()
-    .eq(
-      "id",
-      id
-    )
-    .eq(
-      "user_id",
-      user.id
-    );
-
-
-if (result.error) {
-
-  console.error(
-    "Erro ao excluir:",
-    result.error
-  );
-
-  alert(
-    result.error.message
-  );
-
-  return;
-
-}
-
-
-await load();
-
-
-alert(
-  "Lançamento excluído com sucesso."
-);
-
-} catch (error) {
-
-console.error(
-  error
-);
-
-alert(
-  "Erro ao excluir lançamento."
-);
-
-}
-
-}
-
-/* =========================================================
-CARTÃO
-========================================================= */
-
-async function saveCard(e) {
-
-e.preventDefault();
-
-const result =
-await sb
-.from("cards")
-.insert({
-
-    user_id:
-      user.id,
-
-    name:
-      $("cardName")
-        .value
-        .trim(),
-
-    limit_amount:
-      Number(
-        $("cardLimit").value
-      ),
-
-    closing_day:
-      Number(
-        $("cardClose").value
-      ),
-
-    due_day:
-      Number(
-        $("cardDue").value
-      )
-
-  });
-
-if (result.error) {
-
-msg(
-  "cardMsg",
-  result.error.message
-);
-
-return;
-
-}
-
-msg(
-"cardMsg",
-"Cartão cadastrado com sucesso!"
-);
-
-$("cardForm").reset();
-
-await load();
-
-}
-
-/* =========================================================
-RECORRENTE
-========================================================= */
-
-async function saveRec(e) {
-
-e.preventDefault();
-
-const categoryId =
-$("recCat").value || null;
-
-if (!categoryId) {
-
-msg(
-  "recMsg",
-  "Selecione uma categoria."
-);
-
-return;
-
-}
-
-const result =
-await sb
-.from("recurring")
-.insert({
-
-    user_id:
-      user.id,
-
-    description:
-      $("recDesc")
-        .value
-        .trim(),
-
-    amount:
-      Number(
-        $("recAmount").value
-      ),
-
-    category_id:
-      categoryId,
-
-    due_day:
-      Number(
-        $("recDay").value
-      ),
-
-    start_date:
-      $("recStart").value,
-
-    end_date:
-      $("recEnd").value ||
-      null
-
-  });
-
-if (result.error) {
-
-msg(
-  "recMsg",
-  result.error.message
-);
-
-return;
-
-}
-
-msg(
-"recMsg",
-"Cadastrado com sucesso!"
-);
-
-$("recForm").reset();
-
-await load();
-
-}
-
-/* =========================================================
-META
-========================================================= */
-
-async function saveGoal(e) {
-
-e.preventDefault();
-
-const result =
-await sb
-.from("goals")
-.insert({
-
-    user_id:
-      user.id,
-
-    name:
-      $("goalName")
-        .value
-        .trim(),
-
-    target_amount:
-      Number(
-        $("goalTarget").value
-      ),
-
-    current_amount:
-      Number(
-        $("goalCurrent").value
-      ) || 0,
-
-    deadline:
-      $("goalDate").value ||
-      null
-
-  });
-
-if (result.error) {
-
-msg(
-  "goalMsg",
-  result.error.message
-);
-
-return;
-
-}
-
-msg(
-"goalMsg",
-"Meta cadastrada com sucesso!"
-);
-
-$("goalForm").reset();
-
-await load();
-
-}
-
-/* =========================================================
-CONTA
-========================================================= */
-
-async function saveAccount(e) {
-
-e.preventDefault();
-
-const result =
-await sb
-.from("accounts")
-.insert({
-
-    user_id:
-      user.id,
-
-    name:
-      $("accountName")
-        .value
-        .trim(),
-
-    type:
-      $("accountType").value,
-
-    initial_balance:
-      Number(
-        $("accountInitial").value
-      ) || 0
-
-  });
-
-if (result.error) {
-
-msg(
-  "accountMsg",
-  result.error.message
-);
-
-return;
-
-}
-
-msg(
-"accountMsg",
-"Conta cadastrada com sucesso!"
-);
-
-$("accountForm").reset();
-
-await load();
-
-}
-
-/* =========================================================
-RENDER
-========================================================= */
-
-function render() {
-
-/* =====================================================
-LANÇAMENTOS
-===================================================== */
-
-$("txBody").innerHTML =
-txs
-.slice(0, 300)
-.map(t => `
-
-    <tr>
-
-      <td>
-        ${esc(t.transaction_date)}
-      </td>
-
-      <td>
-        ${esc(t.type)}
-      </td>
-
-      <td>
-        ${esc(t.description)}
-      </td>
-
-      <td>
-        ${esc(
-          t.categories?.name ||
-          "-"
-        )}
-      </td>
-
-      <td>
-        ${money(t.amount)}
-      </td>
-
-      <td>
-        ${esc(t.status)}
-      </td>
-
-      <td>
-
-        ${
-          Number(t.installment_total) > 1
-            ? `${t.installment_number}/${t.installment_total}`
-            : "-"
-        }
-
-      </td>
-
-      <td>
-
-        <button
-          type="button"
-          class="secondary"
-          onclick="editTx('${t.id}')"
-        >
-          ✏️ Editar
-        </button>
-
-        <button
-          type="button"
-          class="danger"
-          onclick="deleteTx('${t.id}')"
-        >
-          🗑️ Excluir
-        </button>
-
-      </td>
-
-    </tr>
-
-  `)
-  .join("");
-
-/* =====================================================
-CARTÕES
-===================================================== */
-
-$("cardBody").innerHTML =
-cards
-.map(card => {
-
-    const used =
-      txs
-        .filter(
-          t =>
-            t.card_id === card.id &&
-            t.type === "saida" &&
-            t.transaction_date.startsWith(
-              thisMonth
-            )
-        )
-        .reduce(
-          (sum, t) =>
-            sum +
-            Number(t.amount),
-          0
-        );
-
-
-    return `
-
-      <tr>
-
-        <td>
-          ${esc(card.name)}
-        </td>
-
-        <td>
-          ${money(card.limit_amount)}
-        </td>
-
-        <td>
-          ${money(used)}
-        </td>
-
-        <td>
-          ${money(
-            Math.max(
-              0,
-              Number(
-                card.limit_amount
-              ) - used
-            )
-          )}
-        </td>
-
-        <td>
-          ${card.closing_day}
-        </td>
-
-        <td>
-          ${card.due_day}
-        </td>
-
-      </tr>
-
-    `;
-
-  })
-  .join("");
-
-/* =====================================================
-RECORRENTES
-===================================================== */
-
-$("recBody").innerHTML =
-recurring
-.map(r => `
-
-    <tr>
-
-      <td>
-        ${esc(r.description)}
-      </td>
-
-      <td>
-        ${money(r.amount)}
-      </td>
-
-      <td>
-        ${esc(
-          r.categories?.name ||
-          "-"
-        )}
-      </td>
-
-      <td>
-        ${r.due_day}
-      </td>
-
-      <td>
-        ${esc(r.start_date)}
-      </td>
-
-      <td>
-        ${esc(r.end_date || "-")}
-      </td>
-
-    </tr>
-
-  `)
-  .join("");
-
-/* =====================================================
-METAS
-===================================================== */
-
-$("goals").innerHTML =
-goalsData();
-
-/* =====================================================
-CONTAS
-===================================================== */
-
-$("accountBody").innerHTML =
-accounts
-.map(account => {
-
-    const movement =
-      txs
-        .filter(
-          t =>
-            t.account_id ===
-            account.id
-        )
-        .reduce(
-          (sum, t) =>
-            sum +
-            (
-              t.type === "entrada"
-                ? 1
-                : -1
-            ) *
-            Number(t.amount),
-          0
-        );
-
-
-    return `
-
-      <tr>
-
-        <td>
-          ${esc(account.name)}
-        </td>
-
-        <td>
-          ${esc(account.type)}
-        </td>
-
-        <td>
-          ${money(
-            account.initial_balance
-          )}
-        </td>
-
-        <td>
-          ${money(movement)}
-        </td>
-
-        <td>
-          ${money(
-            Number(
-              account.initial_balance
-            ) +
-            movement
-          )}
-        </td>
-
-      </tr>
-
-    `;
-
-  })
-  .join("");
-
-dashboard();
-
-report();
-
-}
-
-/* =========================================================
-METAS
-========================================================= */
-
-function goalsData() {
-
-return goals
-.map(goal => {
-
-  const target =
-    Number(
-      goal.target_amount
-    ) || 0;
-
-
-  const current =
-    Number(
-      goal.current_amount
-    ) || 0;
-
-
-  const percentage =
-    target > 0
-      ? Math.min(
-          100,
-          current /
-          target *
-          100
-        )
-      : 0;
-
-
-  return `
-
-    <div class="goal">
-
-      <h3>
-        ${esc(goal.name)}
-      </h3>
-
-      <b>
-        ${money(current)}
-        /
-        ${money(target)}
-      </b>
-
-
-      <div class="progress">
-
-        <div
-          style="width:${percentage}%"
-        ></div>
-
-      </div>
-
-
-      ${percentage.toFixed(1)}%
-
-      ${
-        goal.deadline
-          ? " · prazo " +
-            esc(goal.deadline)
-          : ""
-      }
-
-    </div>
-
-  `;
-
-})
-.join("");
-
-}
-
-/* =========================================================
-DASHBOARD
-========================================================= */
-
-function dashboard() {
-
-if (!$("dashMonth")) {
-return;
-}
-
-const month =
-$("dashMonth").value ||
-thisMonth;
-
-const rows =
-txs.filter(
-t =>
-t.transaction_date
-?.startsWith(month)
-);
-
-const entries =
-rows
-.filter(
-t =>
-t.type === "entrada"
-)
-.reduce(
-(sum, t) =>
-sum +
-Number(t.amount),
-0
-);
-
-const exits =
-rows
-.filter(
-t =>
-t.type === "saida"
-)
-.reduce(
-(sum, t) =>
-sum +
-Number(t.amount),
-0
-);
-
-const pending =
-txs
-.filter(
-t =>
-t.type === "saida" &&
-t.status === "pendente" &&
-t.transaction_date >= today
-)
-.reduce(
-(sum, t) =>
-sum +
-Number(t.amount),
-0
-);
-
-$("inTotal").textContent =
-money(entries);
-
-$("outTotal").textContent =
-money(exits);
-
-$("result").textContent =
-money(
-entries -
-exits
-);
-
-$("available").textContent =
-money(
-entries -
-exits -
-pending
-);
-
-/* FLUXO */
-
-const daily = {};
-
-rows.forEach(t => {
-
-daily[
-  t.transaction_date
-] =
-  (
-    daily[
-      t.transaction_date
-    ] || 0
-  ) +
-  (
-    t.type === "entrada"
-      ? Number(t.amount)
-      : -Number(t.amount)
-  );
-
-});
-
-/* CATEGORIAS */
-
-const categoryTotals = {};
-
-rows
-.filter(
-t =>
-t.type === "saida"
-)
-.forEach(t => {
-
-  const name =
-    t.categories?.name ||
-    "Outros";
-
-
-  categoryTotals[name] =
-    (
-      categoryTotals[name] ||
-      0
-    ) +
-    Number(t.amount);
-
-});
-
-/* GRÁFICO */
-
-if (
-typeof Chart !==
-"undefined"
-) {
-
-flowChart?.destroy();
-
-
-flowChart =
-  new Chart(
-    $("flow"),
-    {
-
-      type: "line",
-
-      data: {
-
-        labels:
-          Object.keys(daily),
-
-        datasets: [{
-
-          label:
-            "Resultado",
-
-          data:
-            Object.values(
-              daily
-            )
-
-        }]
-
-      },
-
-      options: {
-
-        responsive: true,
-
-        maintainAspectRatio:
-          false
-
-      }
-
-    }
-  );
-
-
-catChart?.destroy();
-
-
-catChart =
-  new Chart(
-    $("cats"),
-    {
-
-      type: "doughnut",
-
-      data: {
-
-        labels:
-          Object.keys(
-            categoryTotals
-          ),
-
-        datasets: [{
-
-          data:
-            Object.values(
-              categoryTotals
-            )
-
-        }]
-
-      },
-
-      options: {
-
-        responsive: true
-
-      }
-
-    }
-  );
-
-}
-
-/* PENDÊNCIAS */
-
-$("due").innerHTML =
-txs
-.filter(
-t =>
-t.type === "saida" &&
-t.status === "pendente"
-)
-.slice(0, 5)
-.map(t => `
-
-    <p>
-
-      ${esc(t.transaction_date)}
-      ·
-      ${esc(t.description)}
-
-      <br>
-
-      <b>
-        ${money(t.amount)}
-      </b>
-
-    </p>
-
-  `)
-  .join("") ||
-  "Nenhuma.";
-
-/* CARTÕES */
-
-$("cardDash").innerHTML =
-cards
-.map(card => {
-
-    const total =
-      txs
-        .filter(
-          t =>
-            t.card_id ===
-              card.id &&
-            t.type ===
-              "saida" &&
-            t.transaction_date
-              ?.startsWith(month)
-        )
-        .reduce(
-          (sum, t) =>
-            sum +
-            Number(t.amount),
-          0
-        );
-
-
-    return `
-
-      <p>
-
-        ${esc(card.name)}
-        ·
-        ${money(total)}
-
-      </p>
-
-    `;
-
-  })
-  .join("") ||
-  "Nenhum.";
-
-/* METAS */
-
-$("goalDash").innerHTML =
-goals
-.slice(0, 5)
-.map(goal => {
-
-    const target =
-      Number(
-        goal.target_amount
-      ) || 0;
-
-
-    const current =
-      Number(
-        goal.current_amount
-      ) || 0;
-
-
-    const percentage =
-      target > 0
-        ? current /
-          target *
-          100
-        : 0;
-
-
-    return `
-
-      <p>
-
-        ${esc(goal.name)}
-        ·
-        ${percentage.toFixed(0)}%
-
-      </p>
-
-    `;
-
-  })
-  .join("") ||
-  "Nenhuma.";
-
-}
-
-/* =========================================================
-RELATÓRIO
-========================================================= */
-
-function report() {
-
-if (!$("reportMonth")) {
-return;
-}
-
-const month =
-$("reportMonth").value ||
-thisMonth;
-
-const rows =
-txs.filter(
-t =>
-t.transaction_date
-?.startsWith(month)
-);
-
-const entries =
-rows
-.filter(
-t =>
-t.type === "entrada"
-)
-.reduce(
-(sum, t) =>
-sum +
-Number(t.amount),
-0
-);
-
-const exits =
-rows
-.filter(
-t =>
-t.type === "saida"
-)
-.reduce(
-(sum, t) =>
-sum +
-Number(t.amount),
-0
-);
-
-$("summary").innerHTML = `
-
-<p>
-
-  Entradas:
-  <b>${money(entries)}</b>
-
-  ·
-
-  Saídas:
-  <b>${money(exits)}</b>
-
-  ·
-
-  Resultado:
-  <b>${money(
-    entries -
-    exits
-  )}</b>
-
-</p>
-
-`;
-
-$("reportBody").innerHTML =
-rows
-.map(t => `
-
-    <tr>
-
-      <td>
-        ${esc(
-          t.transaction_date
-        )}
-      </td>
-
-      <td>
-        ${esc(t.type)}
-      </td>
-
-      <td>
-        ${esc(t.description)}
-      </td>
-
-      <td>
-        ${esc(
-          t.categories?.name ||
-          "-"
-        )}
-      </td>
-
-      <td>
-        ${money(t.amount)}
-      </td>
-
-      <td>
-        ${esc(t.status)}
-      </td>
-
-    </tr>
-
-  `)
-  .join("");
-
-}
-
-/* =========================================================
-EXCEL
-========================================================= */
-
-function excel() {
-
-const month =
-$("reportMonth").value ||
-thisMonth;
-
-const rows =
-txs
-.filter(
-t =>
-t.transaction_date
-?.startsWith(month)
-)
-.map(t => ({
-
-    Data:
-      t.transaction_date,
-
-    Tipo:
-      t.type,
-
-    Descrição:
-      t.description,
-
-    Categoria:
-      t.categories?.name ||
-      "",
-
-    Conta:
-      t.accounts?.name ||
-      "",
-
-    Cartão:
-      t.cards?.name ||
-      "",
-
-    Valor:
-      Number(t.amount),
-
-    Status:
-      t.status,
-
-    Parcela:
-      Number(
-        t.installment_total
-      ) > 1
-        ? `${t.installment_number}/${t.installment_total}`
-        : ""
-
-  }));
-
-const worksheet =
-XLSX.utils.json_to_sheet(
-rows
-);
-
-const workbook =
-XLSX.utils.book_new();
-
-XLSX.utils.book_append_sheet(
-workbook,
-worksheet,
-"Financeiro"
-);
-
-XLSX.writeFile(
-workbook,
-"financeiro-${month}.xlsx"
-);
-
-}
-
-/* =========================================================
-PDF
-========================================================= */
-
-function pdf() {
-
-const month =
-$("reportMonth").value ||
-thisMonth;
-
-const rows =
-txs.filter(
-t =>
-t.transaction_date &&
-t.transaction_date
-.startsWith(month)
-);
-
-const entries =
-rows
-.filter(
-t =>
-t.type === "entrada"
-)
-.reduce(
-(sum, t) =>
-sum +
-Number(t.amount || 0),
-0
-);
-
-const exits =
-rows
-.filter(
-t =>
-t.type === "saida"
-)
-.reduce(
-(sum, t) =>
-sum +
-Number(t.amount || 0),
-0
-);
-
-const result =
-entries -
-exits;
-
-const pending =
-rows
-.filter(
-t =>
-t.type === "saida" &&
-t.status === "pendente"
-)
-.reduce(
-(sum, t) =>
-sum +
-Number(t.amount || 0),
-0
-);
-
-const formatMoney =
-value =>
-Number(value || 0)
-.toLocaleString(
-"pt-BR",
-{
-style: "currency",
-currency: "BRL"
-}
-);
-
-const formatDate =
-value => {
-
-  if (!value) {
-    return "-";
-  }
-
-
-  const parts =
-    value.split("-");
+  };
 
 
   if (
-    parts.length !== 3
+    !payload.amount ||
+    payload.amount < 0
   ) {
-    return value;
+
+    showMessage(
+      "txMsg",
+      "Informe um valor válido.",
+      true
+    );
+
+    return;
+
   }
 
 
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  const button =
+    $("txSaveButton");
 
-};
+  button.disabled = true;
 
-const monthName =
-new Date(
-"${month}-01T12:00:00"
-).toLocaleDateString(
-"pt-BR",
-{
-month: "long",
-year: "numeric"
+
+  try {
+
+    let result;
+
+
+    if (id) {
+
+      /*
+      ================================================
+      EDITAR
+      ================================================
+      */
+
+      result = await db
+        .from("transactions")
+        .update(payload)
+        .eq("id", id)
+        .eq("user_id", currentUser.id);
+
+
+    } else {
+
+      /*
+      ================================================
+      NOVO
+      ================================================
+      */
+
+      result = await db
+        .from("transactions")
+        .insert(payload);
+
+    }
+
+
+    if (result.error) {
+
+      console.error(
+        result.error
+      );
+
+      showMessage(
+        "txMsg",
+        result.error.message,
+        true
+      );
+
+      return;
+
+    }
+
+
+    showMessage(
+      "txMsg",
+      id
+        ? "Lançamento atualizado com sucesso!"
+        : "Lançamento salvo com sucesso!"
+    );
+
+
+    resetTransactionForm();
+
+    await loadTransactions();
+
+    renderTransactions();
+
+    updateDashboard();
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    showMessage(
+      "txMsg",
+      error.message || "Erro ao salvar lançamento.",
+      true
+    );
+
+  } finally {
+
+    button.disabled = false;
+
+  }
+
 }
-);
 
-const JsPDF =
-window.jspdf.jsPDF;
 
-const doc =
-new JsPDF();
+/* ======================================================
+   EDITAR LANÇAMENTO
+====================================================== */
 
-doc.setFontSize(20);
+function editTransaction(id) {
 
-doc.text(
-"MEU FINANCEIRO",
-15,
-20
-);
+  const tx =
+    transactions.find(
+      item => String(item.id) === String(id)
+    );
 
-doc.setFontSize(11);
+  if (!tx) {
 
-doc.text(
-"Relatório: ${monthName}",
-15,
-29
-);
+    alert(
+      "Lançamento não encontrado."
+    );
 
-doc.text(
-"Entradas: ${formatMoney(entries)}",
-15,
-42
-);
-
-doc.text(
-"Saídas: ${formatMoney(exits)}",
-15,
-50
-);
-
-doc.text(
-"Resultado: ${formatMoney(result)}",
-15,
-58
-);
-
-doc.text(
-"Pendências: ${formatMoney(pending)}",
-15,
-66
-);
-
-let y = 80;
-
-doc.setFontSize(8);
-
-rows.forEach(
-(t, index) => {
-
-  if (y > 280) {
-
-    doc.addPage();
-
-    y = 20;
+    return;
 
   }
 
 
-  const line =
-    `${formatDate(t.transaction_date)} | ` +
-    `${t.type} | ` +
-    `${String(t.description || "").slice(0, 28)} | ` +
-    `${formatMoney(t.amount)} | ` +
-    `${t.status}`;
+  $("txId").value =
+    tx.id;
+
+  $("txType").value =
+    tx.type || "saida";
+
+  $("txAmount").value =
+    tx.amount ?? "";
+
+  $("txDate").value =
+    tx.date || "";
+
+  $("txCat").value =
+    tx.category_id || "";
+
+  $("txAccount").value =
+    tx.account_id || "";
+
+  $("txCard").value =
+    tx.card_id || "";
+
+  $("txStatus").value =
+    tx.status || "pago";
+
+  $("txDesc").value =
+    tx.description || "";
+
+  $("txInstall").value =
+    tx.installments || 1;
+
+  $("txNotes").value =
+    tx.notes || "";
 
 
-  doc.text(
-    line,
-    10,
-    y
+  $("txSaveButton").textContent =
+    "💾 Atualizar lançamento";
+
+  $("txCancelEdit")
+    .classList.remove("hidden");
+
+
+  document
+    .getElementById("lancamentos")
+    ?.scrollIntoView({
+      behavior: "smooth"
+    });
+
+}
+
+
+/* ======================================================
+   CANCELAR EDIÇÃO
+====================================================== */
+
+function resetTransactionForm() {
+
+  $("txForm").reset();
+
+  $("txId").value = "";
+
+  $("txDate").value =
+    todayISO();
+
+  $("txInstall").value =
+    1;
+
+  $("txSaveButton").textContent =
+    "Salvar lançamento";
+
+  $("txCancelEdit")
+    .classList.add("hidden");
+
+}
+
+
+/* ======================================================
+   EXCLUIR LANÇAMENTO
+====================================================== */
+
+async function deleteTransaction(id) {
+
+  const tx =
+    transactions.find(
+      item => String(item.id) === String(id)
+    );
+
+  if (!tx) return;
+
+
+  const confirmed =
+    confirm(
+      `Excluir o lançamento "${tx.description || ""}" de ${money(tx.amount)}?`
+    );
+
+
+  if (!confirmed) return;
+
+
+  try {
+
+    const {
+      error
+    } = await db
+      .from("transactions")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", currentUser.id);
+
+
+    if (error) {
+
+      console.error(error);
+
+      alert(
+        "Não foi possível excluir:\n\n" +
+        error.message
+      );
+
+      return;
+
+    }
+
+
+    await loadTransactions();
+
+    renderTransactions();
+
+    updateDashboard();
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      "Erro ao excluir lançamento."
+    );
+
+  }
+
+}
+
+
+/* ======================================================
+   RENDER LANÇAMENTOS
+====================================================== */
+
+function renderTransactions() {
+
+  const body =
+    $("txBody");
+
+  if (!body) return;
+
+
+  if (!transactions.length) {
+
+    body.innerHTML = `
+      <tr>
+        <td colspan="8">
+          Nenhum lançamento encontrado.
+        </td>
+      </tr>
+    `;
+
+    return;
+
+  }
+
+
+  body.innerHTML =
+    transactions.map(tx => {
+
+      const category =
+        categories.find(
+          c =>
+            String(c.id) ===
+            String(tx.category_id)
+        );
+
+
+      const installment =
+        tx.installments &&
+        Number(tx.installments) > 1
+          ? `${tx.installments}x`
+          : "1x";
+
+
+      return `
+        <tr>
+
+          <td>
+            ${escapeHTML(tx.date)}
+          </td>
+
+          <td>
+            ${tx.type === "entrada"
+              ? "Entrada"
+              : "Saída"}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              tx.description
+            )}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              category?.name ||
+              category?.nome ||
+              "-"
+            )}
+          </td>
+
+          <td>
+            ${money(tx.amount)}
+          </td>
+
+          <td>
+            ${tx.status === "pendente"
+              ? "Pendente"
+              : "Pago/Recebido"}
+          </td>
+
+          <td>
+            ${installment}
+          </td>
+
+          <td>
+
+            <button
+              type="button"
+              class="secondary"
+              onclick="editTransaction('${tx.id}')"
+            >
+              ✏️ Editar
+            </button>
+
+            <button
+              type="button"
+              class="danger"
+              onclick="deleteTransaction('${tx.id}')"
+            >
+              🗑️ Excluir
+            </button>
+
+          </td>
+
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+/* ======================================================
+   CONTAS
+====================================================== */
+
+async function saveAccount(event) {
+
+  event.preventDefault();
+
+  try {
+
+    const {
+      error
+    } = await db
+      .from("accounts")
+      .insert({
+
+        user_id:
+          currentUser.id,
+
+        name:
+          $("accountName").value.trim(),
+
+        type:
+          $("accountType").value,
+
+        initial_balance:
+          Number(
+            $("accountInitial").value || 0
+          )
+
+      });
+
+
+    if (error) {
+
+      showMessage(
+        "accountMsg",
+        error.message,
+        true
+      );
+
+      return;
+
+    }
+
+
+    showMessage(
+      "accountMsg",
+      "Conta cadastrada!"
+    );
+
+    $("accountForm").reset();
+
+    $("accountInitial").value =
+      "0";
+
+    await loadAccounts();
+
+    populateSelects();
+
+    renderAccounts();
+
+    updateDashboard();
+
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+}
+
+
+function renderAccounts() {
+
+  const body =
+    $("accountBody");
+
+  if (!body) return;
+
+
+  body.innerHTML =
+    accounts.map(account => {
+
+      const movements =
+        transactions
+          .filter(
+            tx =>
+              String(tx.account_id) ===
+              String(account.id)
+          )
+          .reduce(
+            (total, tx) => {
+
+              const amount =
+                Number(tx.amount || 0);
+
+              return tx.type === "entrada"
+                ? total + amount
+                : total - amount;
+
+            },
+            0
+          );
+
+
+      const initial =
+        Number(
+          account.initial_balance || 0
+        );
+
+      const current =
+        initial + movements;
+
+
+      return `
+        <tr>
+
+          <td>
+            ${escapeHTML(account.name)}
+          </td>
+
+          <td>
+            ${escapeHTML(account.type)}
+          </td>
+
+          <td>
+            ${money(initial)}
+          </td>
+
+          <td>
+            ${money(movements)}
+          </td>
+
+          <td>
+            <strong>
+              ${money(current)}
+            </strong>
+          </td>
+
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+/* ======================================================
+   CARTÕES
+====================================================== */
+
+async function saveCard(event) {
+
+  event.preventDefault();
+
+  try {
+
+    const {
+      error
+    } = await db
+      .from("cards")
+      .insert({
+
+        user_id:
+          currentUser.id,
+
+        name:
+          $("cardName").value.trim(),
+
+        limit:
+          Number(
+            $("cardLimit").value
+          ),
+
+        closing_day:
+          Number(
+            $("cardClose").value
+          ),
+
+        due_day:
+          Number(
+            $("cardDue").value
+          )
+
+      });
+
+
+    if (error) {
+
+      showMessage(
+        "cardMsg",
+        error.message,
+        true
+      );
+
+      return;
+
+    }
+
+
+    showMessage(
+      "cardMsg",
+      "Cartão cadastrado!"
+    );
+
+    $("cardForm").reset();
+
+    await loadCards();
+
+    populateSelects();
+
+    renderCards();
+
+    updateDashboard();
+
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+}
+
+
+function renderCards() {
+
+  const body =
+    $("cardBody");
+
+  if (!body) return;
+
+
+  body.innerHTML =
+    cards.map(card => {
+
+      const used =
+        transactions
+          .filter(
+            tx =>
+              String(tx.card_id) ===
+              String(card.id) &&
+              tx.type === "saida"
+          )
+          .reduce(
+            (sum, tx) =>
+              sum +
+              Number(tx.amount || 0),
+            0
+          );
+
+
+      const limit =
+        Number(
+          card.limit || 0
+        );
+
+      const available =
+        limit - used;
+
+
+      return `
+        <tr>
+
+          <td>
+            ${escapeHTML(card.name)}
+          </td>
+
+          <td>
+            ${money(limit)}
+          </td>
+
+          <td>
+            ${money(used)}
+          </td>
+
+          <td>
+            ${money(available)}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              card.closing_day ?? "-"
+            )}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              card.due_day ?? "-"
+            )}
+          </td>
+
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+/* ======================================================
+   RECORRENTES
+====================================================== */
+
+async function saveRecurring(event) {
+
+  event.preventDefault();
+
+  try {
+
+    const {
+      error
+    } = await db
+      .from("recurring")
+      .insert({
+
+        user_id:
+          currentUser.id,
+
+        description:
+          $("recDesc").value.trim(),
+
+        amount:
+          Number(
+            $("recAmount").value
+          ),
+
+        category_id:
+          $("recCat").value || null,
+
+        day:
+          Number(
+            $("recDay").value
+          ),
+
+        start_date:
+          $("recStart").value,
+
+        end_date:
+          $("recEnd").value || null
+
+      });
+
+
+    if (error) {
+
+      showMessage(
+        "recMsg",
+        error.message,
+        true
+      );
+
+      return;
+
+    }
+
+
+    showMessage(
+      "recMsg",
+      "Conta recorrente cadastrada!"
+    );
+
+    $("recForm").reset();
+
+    await loadRecurring();
+
+    renderRecurring();
+
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+}
+
+
+function renderRecurring() {
+
+  const body =
+    $("recBody");
+
+  if (!body) return;
+
+
+  body.innerHTML =
+    recurring.map(item => {
+
+      const category =
+        categories.find(
+          c =>
+            String(c.id) ===
+            String(item.category_id)
+        );
+
+
+      return `
+        <tr>
+
+          <td>
+            ${escapeHTML(item.description)}
+          </td>
+
+          <td>
+            ${money(item.amount)}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              category?.name ||
+              category?.nome ||
+              "-"
+            )}
+          </td>
+
+          <td>
+            ${escapeHTML(item.day)}
+          </td>
+
+          <td>
+            ${escapeHTML(item.start_date)}
+          </td>
+
+          <td>
+            ${escapeHTML(item.end_date || "-")}
+          </td>
+
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+/* ======================================================
+   METAS
+====================================================== */
+
+async function saveGoal(event) {
+
+  event.preventDefault();
+
+  try {
+
+    const {
+      error
+    } = await db
+      .from("goals")
+      .insert({
+
+        user_id:
+          currentUser.id,
+
+        name:
+          $("goalName").value.trim(),
+
+        target:
+          Number(
+            $("goalTarget").value
+          ),
+
+        current:
+          Number(
+            $("goalCurrent").value || 0
+          ),
+
+        target_date:
+          $("goalDate").value || null
+
+      });
+
+
+    if (error) {
+
+      showMessage(
+        "goalMsg",
+        error.message,
+        true
+      );
+
+      return;
+
+    }
+
+
+    showMessage(
+      "goalMsg",
+      "Meta cadastrada!"
+    );
+
+    $("goalForm").reset();
+
+    $("goalCurrent").value =
+      "0";
+
+    await loadGoals();
+
+    renderGoals();
+
+    updateDashboard();
+
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+}
+
+
+function renderGoals() {
+
+  const container =
+    $("goals");
+
+  if (!container) return;
+
+
+  container.innerHTML =
+    goals.map(goal => {
+
+      const target =
+        Number(
+          goal.target || 0
+        );
+
+      const current =
+        Number(
+          goal.current || 0
+        );
+
+      const percentage =
+        target > 0
+          ? Math.min(
+              100,
+              (current / target) * 100
+            )
+          : 0;
+
+
+      return `
+        <div class="card">
+
+          <h3>
+            ${escapeHTML(goal.name)}
+          </h3>
+
+          <p>
+            ${money(current)}
+            de
+            ${money(target)}
+          </p>
+
+          <progress
+            value="${percentage}"
+            max="100"
+            style="width:100%"
+          ></progress>
+
+          <strong>
+            ${percentage.toFixed(1)}%
+          </strong>
+
+          <p>
+            Prazo:
+            ${escapeHTML(
+              goal.target_date || "-"
+            )}
+          </p>
+
+        </div>
+      `;
+
+    }).join("");
+
+}
+
+
+/* ======================================================
+   DASHBOARD
+====================================================== */
+
+function updateDashboard() {
+
+  const month =
+    $("dashMonth")?.value ||
+    currentMonth();
+
+  const filtered =
+    transactions.filter(
+      tx =>
+        String(tx.date || "")
+          .startsWith(month)
+    );
+
+
+  const entries =
+    filtered
+      .filter(
+        tx =>
+          tx.type === "entrada"
+      )
+      .reduce(
+        (sum, tx) =>
+          sum +
+          Number(tx.amount || 0),
+        0
+      );
+
+
+  const exits =
+    filtered
+      .filter(
+        tx =>
+          tx.type === "saida"
+      )
+      .reduce(
+        (sum, tx) =>
+          sum +
+          Number(tx.amount || 0),
+        0
+      );
+
+
+  const result =
+    entries - exits;
+
+
+  const available =
+    accounts.reduce(
+      (sum, account) => {
+
+        const movement =
+          transactions
+            .filter(
+              tx =>
+                String(tx.account_id) ===
+                String(account.id)
+            )
+            .reduce(
+              (total, tx) => {
+
+                const value =
+                  Number(
+                    tx.amount || 0
+                  );
+
+                return tx.type === "entrada"
+                  ? total + value
+                  : total - value;
+
+              },
+              0
+            );
+
+        return sum +
+          Number(
+            account.initial_balance || 0
+          ) +
+          movement;
+
+      },
+      0
+    );
+
+
+  $("inTotal").textContent =
+    money(entries);
+
+  $("outTotal").textContent =
+    money(exits);
+
+  $("result").textContent =
+    money(result);
+
+  $("available").textContent =
+    money(available);
+
+
+  renderCharts(filtered);
+
+  renderPending();
+
+  renderCardDashboard();
+
+  renderGoalDashboard();
+
+}
+
+
+/* ======================================================
+   GRÁFICOS
+====================================================== */
+
+function renderCharts(data) {
+
+  if (
+    typeof Chart === "undefined"
+  ) return;
+
+
+  const flowCanvas =
+    $("flow");
+
+  const catsCanvas =
+    $("cats");
+
+
+  if (!flowCanvas || !catsCanvas)
+    return;
+
+
+  const days = {};
+
+  data.forEach(tx => {
+
+    const day =
+      String(tx.date)
+        .slice(-2);
+
+    if (!days[day]) {
+
+      days[day] = {
+        entrada: 0,
+        saida: 0
+      };
+
+    }
+
+
+    const amount =
+      Number(tx.amount || 0);
+
+
+    if (tx.type === "entrada")
+      days[day].entrada += amount;
+
+    else
+      days[day].saida += amount;
+
+  });
+
+
+  const labels =
+    Object.keys(days).sort();
+
+
+  if (flowChart)
+    flowChart.destroy();
+
+
+  flowChart =
+    new Chart(
+      flowCanvas,
+      {
+        type: "line",
+
+        data: {
+
+          labels,
+
+          datasets: [
+
+            {
+              label: "Entradas",
+
+              data:
+                labels.map(
+                  d => days[d].entrada
+                )
+            },
+
+            {
+              label: "Saídas",
+
+              data:
+                labels.map(
+                  d => days[d].saida
+                )
+            }
+
+          ]
+
+        },
+
+        options: {
+          responsive: true
+        }
+
+      }
+    );
+
+
+  const categoriesTotals = {};
+
+
+  data
+    .filter(
+      tx =>
+        tx.type === "saida"
+    )
+    .forEach(tx => {
+
+      const category =
+        categories.find(
+          c =>
+            String(c.id) ===
+            String(tx.category_id)
+        );
+
+
+      const name =
+        category?.name ||
+        category?.nome ||
+        "Sem categoria";
+
+
+      categoriesTotals[name] =
+        (
+          categoriesTotals[name] ||
+          0
+        ) +
+        Number(tx.amount || 0);
+
+    });
+
+
+  if (catsChart)
+    catsChart.destroy();
+
+
+  catsChart =
+    new Chart(
+      catsCanvas,
+      {
+        type: "doughnut",
+
+        data: {
+
+          labels:
+            Object.keys(
+              categoriesTotals
+            ),
+
+          datasets: [
+            {
+              data:
+                Object.values(
+                  categoriesTotals
+                )
+            }
+          ]
+
+        },
+
+        options: {
+          responsive: true
+        }
+
+      }
+    );
+
+}
+
+
+/* ======================================================
+   PENDÊNCIAS
+====================================================== */
+
+function renderPending() {
+
+  const container =
+    $("due");
+
+  if (!container) return;
+
+
+  const pending =
+    transactions.filter(
+      tx =>
+        tx.status === "pendente"
+    );
+
+
+  if (!pending.length) {
+
+    container.innerHTML =
+      "<p>Nenhuma conta pendente.</p>";
+
+    return;
+
+  }
+
+
+  container.innerHTML =
+    pending
+      .slice(0, 10)
+      .map(
+        tx => `
+          <p>
+            <strong>
+              ${escapeHTML(tx.description)}
+            </strong>
+            <br>
+            ${escapeHTML(tx.date)}
+            -
+            ${money(tx.amount)}
+          </p>
+        `
+      )
+      .join("");
+
+}
+
+
+/* ======================================================
+   DASHBOARD CARTÕES
+====================================================== */
+
+function renderCardDashboard() {
+
+  const container =
+    $("cardDash");
+
+  if (!container) return;
+
+
+  if (!cards.length) {
+
+    container.innerHTML =
+      "<p>Nenhum cartão cadastrado.</p>";
+
+    return;
+
+  }
+
+
+  container.innerHTML =
+    cards.map(card => {
+
+      const used =
+        transactions
+          .filter(
+            tx =>
+              String(tx.card_id) ===
+              String(card.id) &&
+              tx.type === "saida"
+          )
+          .reduce(
+            (sum, tx) =>
+              sum +
+              Number(tx.amount || 0),
+            0
+          );
+
+
+      const limit =
+        Number(card.limit || 0);
+
+
+      return `
+        <p>
+          <strong>
+            ${escapeHTML(card.name)}
+          </strong>
+          <br>
+          Usado:
+          ${money(used)}
+          /
+          ${money(limit)}
+        </p>
+      `;
+
+    }).join("");
+
+}
+
+
+/* ======================================================
+   DASHBOARD METAS
+====================================================== */
+
+function renderGoalDashboard() {
+
+  const container =
+    $("goalDash");
+
+  if (!container) return;
+
+
+  if (!goals.length) {
+
+    container.innerHTML =
+      "<p>Nenhuma meta cadastrada.</p>";
+
+    return;
+
+  }
+
+
+  container.innerHTML =
+    goals
+      .slice(0, 5)
+      .map(goal => {
+
+        const target =
+          Number(
+            goal.target || 0
+          );
+
+        const current =
+          Number(
+            goal.current || 0
+          );
+
+        const percent =
+          target > 0
+            ? Math.min(
+                100,
+                current / target * 100
+              )
+            : 0;
+
+
+        return `
+          <p>
+            <strong>
+              ${escapeHTML(goal.name)}
+            </strong>
+            <br>
+            ${percent.toFixed(0)}%
+          </p>
+        `;
+
+      })
+      .join("");
+
+}
+
+
+/* ======================================================
+   RELATÓRIO
+====================================================== */
+
+function renderReport() {
+
+  const month =
+    $("reportMonth").value ||
+    currentMonth();
+
+
+  const filtered =
+    transactions.filter(
+      tx =>
+        String(tx.date || "")
+          .startsWith(month)
+    );
+
+
+  const body =
+    $("reportBody");
+
+  if (!body) return;
+
+
+  body.innerHTML =
+    filtered.map(tx => {
+
+      const category =
+        categories.find(
+          c =>
+            String(c.id) ===
+            String(tx.category_id)
+        );
+
+
+      return `
+        <tr>
+
+          <td>
+            ${escapeHTML(tx.date)}
+          </td>
+
+          <td>
+            ${tx.type === "entrada"
+              ? "Entrada"
+              : "Saída"}
+          </td>
+
+          <td>
+            ${escapeHTML(tx.description)}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              category?.name ||
+              category?.nome ||
+              "-"
+            )}
+          </td>
+
+          <td>
+            ${money(tx.amount)}
+          </td>
+
+          <td>
+            ${escapeHTML(tx.status)}
+          </td>
+
+        </tr>
+      `;
+
+    }).join("");
+
+
+  const entries =
+    filtered
+      .filter(
+        tx =>
+          tx.type === "entrada"
+      )
+      .reduce(
+        (sum, tx) =>
+          sum +
+          Number(tx.amount || 0),
+        0
+      );
+
+
+  const exits =
+    filtered
+      .filter(
+        tx =>
+          tx.type === "saida"
+      )
+      .reduce(
+        (sum, tx) =>
+          sum +
+          Number(tx.amount || 0),
+        0
+      );
+
+
+  $("summary").innerHTML = `
+    <p>
+      <strong>Entradas:</strong>
+      ${money(entries)}
+    </p>
+
+    <p>
+      <strong>Saídas:</strong>
+      ${money(exits)}
+    </p>
+
+    <p>
+      <strong>Resultado:</strong>
+      ${money(entries - exits)}
+    </p>
+  `;
+
+}
+
+
+/* ======================================================
+   EXPORTAR EXCEL
+====================================================== */
+
+function exportExcel() {
+
+  if (
+    typeof XLSX === "undefined"
+  ) {
+
+    alert(
+      "Biblioteca Excel não carregada."
+    );
+
+    return;
+
+  }
+
+
+  const month =
+    $("reportMonth").value ||
+    currentMonth();
+
+
+  const data =
+    transactions
+      .filter(
+        tx =>
+          String(tx.date || "")
+            .startsWith(month)
+      )
+      .map(tx => {
+
+        const category =
+          categories.find(
+            c =>
+              String(c.id) ===
+              String(tx.category_id)
+          );
+
+
+        return {
+
+          Data:
+            tx.date,
+
+          Tipo:
+            tx.type,
+
+          Descrição:
+            tx.description,
+
+          Categoria:
+            category?.name ||
+            category?.nome ||
+            "",
+
+          Valor:
+            Number(tx.amount || 0),
+
+          Status:
+            tx.status
+
+        };
+
+      });
+
+
+  const worksheet =
+    XLSX.utils.json_to_sheet(data);
+
+
+  const workbook =
+    XLSX.utils.book_new();
+
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    worksheet,
+    "Financeiro"
   );
 
 
-  y += 7;
+  XLSX.writeFile(
+    workbook,
+    `financeiro-${month}.xlsx`
+  );
 
 }
 
-);
 
-doc.save(
-"meu-financeiro-${month}.pdf"
-);
+/* ======================================================
+   PDF
+====================================================== */
+
+function exportPDF() {
+
+  if (
+    !window.jspdf?.jsPDF
+  ) {
+
+    alert(
+      "Biblioteca PDF não carregada."
+    );
+
+    return;
+
+  }
+
+
+  const month =
+    $("reportMonth").value ||
+    currentMonth();
+
+
+  const filtered =
+    transactions.filter(
+      tx =>
+        String(tx.date || "")
+          .startsWith(month)
+    );
+
+
+  const {
+    jsPDF
+  } = window.jspdf;
+
+
+  const doc =
+    new jsPDF();
+
+
+  doc.setFontSize(18);
+
+  doc.text(
+    "Meu Financeiro",
+    20,
+    20
+  );
+
+
+  doc.setFontSize(11);
+
+  doc.text(
+    `Relatório: ${month}`,
+    20,
+    30
+  );
+
+
+  let y = 45;
+
+
+  filtered.forEach(tx => {
+
+    const line =
+      `${tx.date} | ${tx.type} | ${tx.description} | ${money(tx.amount)}`;
+
+    doc.text(
+      line.substring(0, 110),
+      20,
+      y
+    );
+
+    y += 7;
+
+
+    if (y > 280) {
+
+      doc.addPage();
+
+      y = 20;
+
+    }
+
+  });
+
+
+  doc.save(
+    `financeiro-${month}.pdf`
+  );
 
 }
 
-/* =========================================================
-NAVEGAÇÃO
-========================================================= */
 
-function page(p) {
+/* ======================================================
+   NAVEGAÇÃO
+====================================================== */
 
-document
-.querySelectorAll(".page")
-.forEach(
-section =>
-section.classList.add(
-"hidden"
-)
-);
+function setupNavigation() {
 
-const selected =
-$(p);
+  document
+    .querySelectorAll(
+      "nav button[data-page]"
+    )
+    .forEach(button => {
 
-if (selected) {
+      button.addEventListener(
+        "click",
+        () => {
 
-selected.classList.remove(
-  "hidden"
-);
+          const page =
+            button.dataset.page;
+
+
+          document
+            .querySelectorAll(".page")
+            .forEach(section => {
+
+              section.classList.add(
+                "hidden"
+              );
+
+            });
+
+
+          $(page)
+            ?.classList
+            .remove("hidden");
+
+
+          if (page === "dashboard") {
+
+            updateDashboard();
+
+          }
+
+
+          if (page === "relatorios") {
+
+            renderReport();
+
+          }
+
+        }
+      );
+
+    });
 
 }
 
+
+/* ======================================================
+   EVENTOS
+====================================================== */
+
+function setupEvents() {
+
+  $("loginForm")
+    ?.addEventListener(
+      "submit",
+      login
+    );
+
+
+  $("signupForm")
+    ?.addEventListener(
+      "submit",
+      signup
+    );
+
+
+  $("logout")
+    ?.addEventListener(
+      "click",
+      logout
+    );
+
+
+  $("txForm")
+    ?.addEventListener(
+      "submit",
+      saveTransaction
+    );
+
+
+  $("txCancelEdit")
+    ?.addEventListener(
+      "click",
+      resetTransactionForm
+    );
+
+
+  $("cardForm")
+    ?.addEventListener(
+      "submit",
+      saveCard
+    );
+
+
+  $("recForm")
+    ?.addEventListener(
+      "submit",
+      saveRecurring
+    );
+
+
+  $("goalForm")
+    ?.addEventListener(
+      "submit",
+      saveGoal
+    );
+
+
+  $("accountForm")
+    ?.addEventListener(
+      "submit",
+      saveAccount
+    );
+
+
+  $("dashMonth")
+    ?.addEventListener(
+      "change",
+      updateDashboard
+    );
+
+
+  $("reportMonth")
+    ?.addEventListener(
+      "change",
+      renderReport
+    );
+
+
+  $("excel")
+    ?.addEventListener(
+      "click",
+      exportExcel
+    );
+
+
+  $("pdf")
+    ?.addEventListener(
+      "click",
+      exportPDF
+    );
+
+
+  setupNavigation();
+
 }
 
-/* =========================================================
-DISPONIBILIZAR FUNÇÕES PARA OS BOTÕES
-========================================================= */
 
-window.editTx =
-editTx;
+/* ======================================================
+   INICIALIZAÇÃO
+====================================================== */
 
-window.deleteTx =
-deleteTx;
+document.addEventListener(
+  "DOMContentLoaded",
+  async () => {
 
-window.page =
-page;
+    setupEvents();
+
+    if (!db) {
+
+      showMessage(
+        "authMsg",
+        "Erro: configuração do Supabase não carregada.",
+        true
+      );
+
+      return;
+
+    }
+
+    await initAuth();
+
+  }
+);
+
+
+/* ======================================================
+   FUNÇÕES GLOBAIS DOS BOTÕES
+====================================================== */
+
+window.editTransaction =
+  editTransaction;
+
+window.deleteTransaction =
+  deleteTransaction;
+
+window.resetTransactionForm =
+  resetTransactionForm;
