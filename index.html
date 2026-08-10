@@ -2,7 +2,9 @@
 
 <html lang="pt-BR"><head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">  <title>Meu Financeiro</title>  <link rel="stylesheet" href="css/style.css">  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4"></script>  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script></head><body>  <!-- LOGIN -->  <div id="loginView" class="auth"><div class="card authcard">
+  <meta name="viewport" content="width=device-width,initial-scale=1">  <title>Meu Financeiro</title>  <link rel="stylesheet" href="css/style.css">  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4"></script>  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script></head><body>  <!-- =========================
+       LOGIN
+  ========================== -->  <div id="loginView" class="auth"><div class="card authcard">
 
   <h1>💰 Meu Financeiro</h1>
 
@@ -36,7 +38,9 @@
 
     <input
       id="signupName"
+      type="text"
       placeholder="Nome"
+      autocomplete="name"
       required
     >
 
@@ -52,11 +56,15 @@
       id="signupPassword"
       type="password"
       placeholder="Senha"
+      autocomplete="new-password"
       minlength="6"
       required
     >
 
-    <button type="submit" class="secondary">
+    <button
+      type="submit"
+      class="secondary"
+    >
       Criar conta
     </button>
 
@@ -66,7 +74,9 @@
 
 </div>
 
-  </div>  <!-- APLICAÇÃO -->  <div id="app" class="hidden"><header>
+  </div>  <!-- =========================
+       APLICAÇÃO
+  ========================== -->  <div id="app" class="hidden"><header>
 
   <b>💰 Meu Financeiro</b>
 
@@ -74,7 +84,11 @@
 
     <span id="userName"></span>
 
-    <button id="logout" class="danger">
+    <button
+      id="logout"
+      class="danger"
+      type="button"
+    >
       Sair
     </button>
 
@@ -84,6 +98,10 @@
 
 
 <div class="layout">
+
+  <!-- =====================
+       MENU
+  ====================== -->
 
   <nav>
 
@@ -120,9 +138,14 @@
 
   <main>
 
-    <!-- DASHBOARD -->
+    <!-- =====================
+         DASHBOARD
+    ====================== -->
 
-    <section id="dashboard" class="page">
+    <section
+      id="dashboard"
+      class="page"
+    >
 
       <div class="head">
 
@@ -171,7 +194,6 @@
 
         </div>
 
-
         <div class="card">
 
           <h3>Gastos por categoria</h3>
@@ -193,7 +215,6 @@
 
         </div>
 
-
         <div class="card">
 
           <h3>Cartões</h3>
@@ -201,7 +222,6 @@
           <div id="cardDash"></div>
 
         </div>
-
 
         <div class="card">
 
@@ -216,16 +236,24 @@
     </section>
 
 
-    <!-- LANÇAMENTOS -->
+    <!-- =====================
+         LANÇAMENTOS
+    ====================== -->
 
-    <section id="lancamentos" class="page hidden">
+    <section
+      id="lancamentos"
+      class="page hidden"
+    >
 
       <h2>Lançamentos</h2>
 
 
       <div class="card">
 
-        <form id="txForm" class="grid">
+        <form
+          id="txForm"
+          class="grid"
+        >
 
           <input
             id="txId"
@@ -237,15 +265,8 @@
             Tipo
 
             <select id="txType">
-
-              <option value="saida">
-                Saída
-              </option>
-
-              <option value="entrada">
-                Entrada
-              </option>
-
+              <option value="saida">Saída</option>
+              <option value="entrada">Entrada</option>
             </select>
 
           </label>
@@ -258,6 +279,7 @@
               id="txAmount"
               type="number"
               step="0.01"
+              min="0.01"
               required
             >
 
@@ -279,7 +301,10 @@
           <label>
             Categoria
 
-            <select id="txCat" required></select>
+            <select
+              id="txCat"
+              required
+            ></select>
 
           </label>
 
@@ -287,7 +312,10 @@
           <label>
             Conta
 
-            <select id="txAccount" required></select>
+            <select
+              id="txAccount"
+              required
+            ></select>
 
           </label>
 
@@ -296,11 +324,7 @@
             Cartão
 
             <select id="txCard">
-
-              <option value="">
-                Nenhum
-              </option>
-
+              <option value="">Nenhum</option>
             </select>
 
           </label>
@@ -329,6 +353,7 @@
 
             <input
               id="txDesc"
+              type="text"
               required
             >
 
@@ -389,7 +414,6 @@
           <thead>
 
             <tr>
-
               <th>Data</th>
               <th>Tipo</th>
               <th>Descrição</th>
@@ -398,11 +422,9 @@
               <th>Status</th>
               <th>Parcela</th>
               <th>Ações</th>
-
             </tr>
 
           </thead>
-
 
           <tbody id="txBody"></tbody>
 
@@ -413,22 +435,31 @@
     </section>
 
 
-    <!-- CARTÕES -->
+    <!-- =====================
+         CARTÕES
+    ====================== -->
 
-    <section id="cartoes" class="page hidden">
+    <section
+      id="cartoes"
+      class="page hidden"
+    >
 
       <h2>Cartões</h2>
 
-
       <div class="card">
 
-        <form id="cardForm" class="grid">
+        <form
+          id="cardForm"
+          class="grid"
+        >
 
           <label>
             Nome
-            <input id="cardName" required>
+            <input
+              id="cardName"
+              required
+            >
           </label>
-
 
           <label>
             Limite
@@ -436,10 +467,10 @@
               id="cardLimit"
               type="number"
               step="0.01"
+              min="0"
               required
             >
           </label>
-
 
           <label>
             Fechamento
@@ -452,7 +483,6 @@
             >
           </label>
 
-
           <label>
             Vencimento
             <input
@@ -464,8 +494,10 @@
             >
           </label>
 
-
-          <button class="wide">
+          <button
+            class="wide"
+            type="submit"
+          >
             Cadastrar
           </button>
 
@@ -502,22 +534,31 @@
     </section>
 
 
-    <!-- RECORRENTES -->
+    <!-- =====================
+         RECORRENTES
+    ====================== -->
 
-    <section id="recorrentes" class="page hidden">
+    <section
+      id="recorrentes"
+      class="page hidden"
+    >
 
       <h2>Contas recorrentes</h2>
 
-
       <div class="card">
 
-        <form id="recForm" class="grid">
+        <form
+          id="recForm"
+          class="grid"
+        >
 
           <label>
             Descrição
-            <input id="recDesc" required>
+            <input
+              id="recDesc"
+              required
+            >
           </label>
-
 
           <label>
             Valor
@@ -529,12 +570,13 @@
             >
           </label>
 
-
           <label>
             Categoria
-            <select id="recCat" required></select>
+            <select
+              id="recCat"
+              required
+            ></select>
           </label>
-
 
           <label>
             Dia
@@ -547,7 +589,6 @@
             >
           </label>
 
-
           <label>
             Início
             <input
@@ -557,7 +598,6 @@
             >
           </label>
 
-
           <label>
             Fim
             <input
@@ -566,8 +606,10 @@
             >
           </label>
 
-
-          <button class="wide">
+          <button
+            class="wide"
+            type="submit"
+          >
             Cadastrar
           </button>
 
@@ -604,22 +646,31 @@
     </section>
 
 
-    <!-- METAS -->
+    <!-- =====================
+         METAS
+    ====================== -->
 
-    <section id="metas" class="page hidden">
+    <section
+      id="metas"
+      class="page hidden"
+    >
 
       <h2>Metas</h2>
 
-
       <div class="card">
 
-        <form id="goalForm" class="grid">
+        <form
+          id="goalForm"
+          class="grid"
+        >
 
           <label>
             Meta
-            <input id="goalName" required>
+            <input
+              id="goalName"
+              required
+            >
           </label>
-
 
           <label>
             Objetivo
@@ -631,7 +682,6 @@
             >
           </label>
 
-
           <label>
             Atual
             <input
@@ -642,7 +692,6 @@
             >
           </label>
 
-
           <label>
             Prazo
             <input
@@ -651,8 +700,10 @@
             >
           </label>
 
-
-          <button class="wide">
+          <button
+            class="wide"
+            type="submit"
+          >
             Cadastrar
           </button>
 
@@ -662,44 +713,49 @@
 
       </div>
 
-
       <div id="goals"></div>
 
     </section>
 
 
-    <!-- CONTAS -->
+    <!-- =====================
+         CONTAS
+    ====================== -->
 
-    <section id="contas" class="page hidden">
+    <section
+      id="contas"
+      class="page hidden"
+    >
 
       <h2>Contas e patrimônio</h2>
 
-
       <div class="card">
 
-        <form id="accountForm" class="grid">
+        <form
+          id="accountForm"
+          class="grid"
+        >
 
           <label>
             Nome
-            <input id="accountName" required>
+            <input
+              id="accountName"
+              required
+            >
           </label>
-
 
           <label>
             Tipo
 
             <select id="accountType">
-
               <option>Conta corrente</option>
               <option>Poupança</option>
               <option>Dinheiro</option>
               <option>Investimento</option>
               <option>Outro</option>
-
             </select>
 
           </label>
-
 
           <label>
             Saldo inicial
@@ -713,8 +769,10 @@
 
           </label>
 
-
-          <button class="wide">
+          <button
+            class="wide"
+            type="submit"
+          >
             Cadastrar
           </button>
 
@@ -750,12 +808,16 @@
     </section>
 
 
-    <!-- RELATÓRIOS -->
+    <!-- =====================
+         RELATÓRIOS
+    ====================== -->
 
-    <section id="relatorios" class="page hidden">
+    <section
+      id="relatorios"
+      class="page hidden"
+    >
 
       <h2>Relatórios</h2>
-
 
       <div class="card">
 
@@ -763,27 +825,30 @@
 
           <label>
             Mês
+
             <input
               id="reportMonth"
               type="month"
             >
+
           </label>
 
-
-          <button id="excel">
+          <button
+            id="excel"
+            type="button"
+          >
             Exportar Excel
           </button>
-
 
           <button
             id="pdf"
             class="secondary"
+            type="button"
           >
             Gerar PDF
           </button>
 
         </div>
-
 
         <div id="summary"></div>
 
@@ -819,8 +884,7 @@
 
 </div>
 
-  </div>  <!-- IMPORTANTE:
-       Não precisa mais de config.js.
-       A conexão do Supabase está no app.js.
-  -->  <script src="js/app.js"></script></body>
+  </div>  <!-- =========================
+       SCRIPTS
+  ========================== -->  <script src="js/config.js"></script>  <script src="js/app.js"></script></body>
 </html>
