@@ -1,890 +1,936 @@
 <!doctype html>
-
-<html lang="pt-BR"><head>
+<html lang="pt-BR">
+<head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">  <title>Meu Financeiro</title>  <link rel="stylesheet" href="css/style.css">  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4"></script>  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script></head><body>  <!-- =========================
-       LOGIN
-  ========================== -->  <div id="loginView" class="auth"><div class="card authcard">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
 
-  <h1>💰 Meu Financeiro</h1>
+  <title>Meu Financeiro</title>
 
-  <form id="loginForm">
+  <link rel="stylesheet" href="css/style.css">
 
-    <input
-      id="loginEmail"
-      type="email"
-      placeholder="E-mail"
-      autocomplete="email"
-      required
-    >
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <input
-      id="loginPassword"
-      type="password"
-      placeholder="Senha"
-      autocomplete="current-password"
-      required
-    >
+  <!-- Bibliotecas -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+</head>
 
-    <button type="submit">
-      Entrar
-    </button>
+<body>
 
-  </form>
+<!-- =====================================================
+     LOGIN
+====================================================== -->
 
-  <hr>
+<div id="loginView" class="auth">
 
-  <form id="signupForm">
+  <div class="card authcard">
 
-    <input
-      id="signupName"
-      type="text"
-      placeholder="Nome"
-      autocomplete="name"
-      required
-    >
+    <h1>💰 Meu Financeiro</h1>
 
-    <input
-      id="signupEmail"
-      type="email"
-      placeholder="E-mail"
-      autocomplete="email"
-      required
-    >
+    <form id="loginForm">
 
-    <input
-      id="signupPassword"
-      type="password"
-      placeholder="Senha"
-      autocomplete="new-password"
-      minlength="6"
-      required
-    >
+      <input
+        id="loginEmail"
+        type="email"
+        placeholder="E-mail"
+        autocomplete="email"
+        required
+      >
 
-    <button
-      type="submit"
-      class="secondary"
-    >
-      Criar conta
-    </button>
+      <input
+        id="loginPassword"
+        type="password"
+        placeholder="Senha"
+        autocomplete="current-password"
+        required
+      >
 
-  </form>
+      <button type="submit">
+        Entrar
+      </button>
 
-  <p id="authMsg"></p>
+    </form>
+
+    <hr>
+
+    <form id="signupForm">
+
+      <input
+        id="signupName"
+        placeholder="Nome"
+        autocomplete="name"
+        required
+      >
+
+      <input
+        id="signupEmail"
+        type="email"
+        placeholder="E-mail"
+        autocomplete="email"
+        required
+      >
+
+      <input
+        id="signupPassword"
+        type="password"
+        placeholder="Senha"
+        autocomplete="new-password"
+        minlength="6"
+        required
+      >
+
+      <button
+        type="submit"
+        class="secondary"
+      >
+        Criar conta
+      </button>
+
+    </form>
+
+    <p id="authMsg"></p>
+
+  </div>
 
 </div>
 
-  </div>  <!-- =========================
-       APLICAÇÃO
-  ========================== -->  <div id="app" class="hidden"><header>
 
-  <b>💰 Meu Financeiro</b>
+<!-- =====================================================
+     APLICAÇÃO
+====================================================== -->
 
-  <span>
+<div id="app" class="hidden">
 
-    <span id="userName"></span>
+  <header>
 
-    <button
-      id="logout"
-      class="danger"
-      type="button"
-    >
-      Sair
-    </button>
+    <b>💰 Meu Financeiro</b>
 
-  </span>
+    <span>
 
-</header>
+      <span id="userName"></span>
 
+      <button
+        id="logout"
+        class="danger"
+        type="button"
+      >
+        Sair
+      </button>
 
-<div class="layout">
+    </span>
 
-  <!-- =====================
-       MENU
-  ====================== -->
+  </header>
 
-  <nav>
 
-    <button data-page="dashboard">
-      📊 Dashboard
-    </button>
+  <div class="layout">
 
-    <button data-page="lancamentos">
-      📝 Lançamentos
-    </button>
+    <!-- MENU -->
 
-    <button data-page="cartoes">
-      💳 Cartões
-    </button>
+    <nav>
 
-    <button data-page="recorrentes">
-      🔄 Recorrentes
-    </button>
+      <button data-page="dashboard">
+        📊 Dashboard
+      </button>
 
-    <button data-page="metas">
-      🎯 Metas
-    </button>
+      <button data-page="lancamentos">
+        📝 Lançamentos
+      </button>
 
-    <button data-page="contas">
-      🏦 Contas
-    </button>
+      <button data-page="cartoes">
+        💳 Cartões
+      </button>
 
-    <button data-page="relatorios">
-      📄 Relatórios
-    </button>
+      <button data-page="recorrentes">
+        🔄 Recorrentes
+      </button>
 
-  </nav>
+      <button data-page="metas">
+        🎯 Metas
+      </button>
 
+      <button data-page="contas">
+        🏦 Contas
+      </button>
 
-  <main>
+      <button data-page="relatorios">
+        📄 Relatórios
+      </button>
 
-    <!-- =====================
-         DASHBOARD
-    ====================== -->
+    </nav>
 
-    <section
-      id="dashboard"
-      class="page"
-    >
 
-      <div class="head">
+    <main>
 
-        <h2>Dashboard</h2>
+      <!-- =================================================
+           DASHBOARD
+      ================================================== -->
 
-        <input
-          id="dashMonth"
-          type="month"
-        >
+      <section id="dashboard" class="page">
 
-      </div>
+        <div class="head">
 
-
-      <div class="kpis">
-
-        <div>
-          <small>Entradas</small>
-          <strong id="inTotal">R$ 0,00</strong>
-        </div>
-
-        <div>
-          <small>Saídas</small>
-          <strong id="outTotal">R$ 0,00</strong>
-        </div>
-
-        <div>
-          <small>Resultado</small>
-          <strong id="result">R$ 0,00</strong>
-        </div>
-
-        <div>
-          <small>Disponível</small>
-          <strong id="available">R$ 0,00</strong>
-        </div>
-
-      </div>
-
-
-      <div class="cols">
-
-        <div class="card">
-
-          <h3>Fluxo</h3>
-
-          <canvas id="flow"></canvas>
-
-        </div>
-
-        <div class="card">
-
-          <h3>Gastos por categoria</h3>
-
-          <canvas id="cats"></canvas>
-
-        </div>
-
-      </div>
-
-
-      <div class="cols3">
-
-        <div class="card">
-
-          <h3>Contas pendentes</h3>
-
-          <div id="due"></div>
-
-        </div>
-
-        <div class="card">
-
-          <h3>Cartões</h3>
-
-          <div id="cardDash"></div>
-
-        </div>
-
-        <div class="card">
-
-          <h3>Metas</h3>
-
-          <div id="goalDash"></div>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-    <!-- =====================
-         LANÇAMENTOS
-    ====================== -->
-
-    <section
-      id="lancamentos"
-      class="page hidden"
-    >
-
-      <h2>Lançamentos</h2>
-
-
-      <div class="card">
-
-        <form
-          id="txForm"
-          class="grid"
-        >
+          <h2>Dashboard</h2>
 
           <input
-            id="txId"
-            type="hidden"
+            id="dashMonth"
+            type="month"
           >
-
-
-          <label>
-            Tipo
-
-            <select id="txType">
-              <option value="saida">Saída</option>
-              <option value="entrada">Entrada</option>
-            </select>
-
-          </label>
-
-
-          <label>
-            Valor
-
-            <input
-              id="txAmount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              required
-            >
-
-          </label>
-
-
-          <label>
-            Data
-
-            <input
-              id="txDate"
-              type="date"
-              required
-            >
-
-          </label>
-
-
-          <label>
-            Categoria
-
-            <select
-              id="txCat"
-              required
-            ></select>
-
-          </label>
-
-
-          <label>
-            Conta
-
-            <select
-              id="txAccount"
-              required
-            ></select>
-
-          </label>
-
-
-          <label>
-            Cartão
-
-            <select id="txCard">
-              <option value="">Nenhum</option>
-            </select>
-
-          </label>
-
-
-          <label>
-            Status
-
-            <select id="txStatus">
-
-              <option value="pago">
-                Pago/Recebido
-              </option>
-
-              <option value="pendente">
-                Pendente
-              </option>
-
-            </select>
-
-          </label>
-
-
-          <label>
-            Descrição
-
-            <input
-              id="txDesc"
-              type="text"
-              required
-            >
-
-          </label>
-
-
-          <label>
-            Parcelas
-
-            <input
-              id="txInstall"
-              type="number"
-              min="1"
-              value="1"
-            >
-
-          </label>
-
-
-          <label class="wide">
-
-            Observação
-
-            <textarea id="txNotes"></textarea>
-
-          </label>
-
-
-          <button
-            id="txSaveButton"
-            class="wide"
-            type="submit"
-          >
-            Salvar lançamento
-          </button>
-
-
-          <button
-            id="txCancelEdit"
-            class="wide secondary hidden"
-            type="button"
-          >
-            Cancelar edição
-          </button>
-
-        </form>
-
-
-        <p id="txMsg"></p>
-
-      </div>
-
-
-      <div class="card table">
-
-        <table>
-
-          <thead>
-
-            <tr>
-              <th>Data</th>
-              <th>Tipo</th>
-              <th>Descrição</th>
-              <th>Categoria</th>
-              <th>Valor</th>
-              <th>Status</th>
-              <th>Parcela</th>
-              <th>Ações</th>
-            </tr>
-
-          </thead>
-
-          <tbody id="txBody"></tbody>
-
-        </table>
-
-      </div>
-
-    </section>
-
-
-    <!-- =====================
-         CARTÕES
-    ====================== -->
-
-    <section
-      id="cartoes"
-      class="page hidden"
-    >
-
-      <h2>Cartões</h2>
-
-      <div class="card">
-
-        <form
-          id="cardForm"
-          class="grid"
-        >
-
-          <label>
-            Nome
-            <input
-              id="cardName"
-              required
-            >
-          </label>
-
-          <label>
-            Limite
-            <input
-              id="cardLimit"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-            >
-          </label>
-
-          <label>
-            Fechamento
-            <input
-              id="cardClose"
-              type="number"
-              min="1"
-              max="31"
-              required
-            >
-          </label>
-
-          <label>
-            Vencimento
-            <input
-              id="cardDue"
-              type="number"
-              min="1"
-              max="31"
-              required
-            >
-          </label>
-
-          <button
-            class="wide"
-            type="submit"
-          >
-            Cadastrar
-          </button>
-
-        </form>
-
-        <p id="cardMsg"></p>
-
-      </div>
-
-
-      <div class="card table">
-
-        <table>
-
-          <thead>
-
-            <tr>
-              <th>Cartão</th>
-              <th>Limite</th>
-              <th>Usado</th>
-              <th>Disponível</th>
-              <th>Fechamento</th>
-              <th>Vencimento</th>
-            </tr>
-
-          </thead>
-
-          <tbody id="cardBody"></tbody>
-
-        </table>
-
-      </div>
-
-    </section>
-
-
-    <!-- =====================
-         RECORRENTES
-    ====================== -->
-
-    <section
-      id="recorrentes"
-      class="page hidden"
-    >
-
-      <h2>Contas recorrentes</h2>
-
-      <div class="card">
-
-        <form
-          id="recForm"
-          class="grid"
-        >
-
-          <label>
-            Descrição
-            <input
-              id="recDesc"
-              required
-            >
-          </label>
-
-          <label>
-            Valor
-            <input
-              id="recAmount"
-              type="number"
-              step="0.01"
-              required
-            >
-          </label>
-
-          <label>
-            Categoria
-            <select
-              id="recCat"
-              required
-            ></select>
-          </label>
-
-          <label>
-            Dia
-            <input
-              id="recDay"
-              type="number"
-              min="1"
-              max="31"
-              required
-            >
-          </label>
-
-          <label>
-            Início
-            <input
-              id="recStart"
-              type="date"
-              required
-            >
-          </label>
-
-          <label>
-            Fim
-            <input
-              id="recEnd"
-              type="date"
-            >
-          </label>
-
-          <button
-            class="wide"
-            type="submit"
-          >
-            Cadastrar
-          </button>
-
-        </form>
-
-        <p id="recMsg"></p>
-
-      </div>
-
-
-      <div class="card table">
-
-        <table>
-
-          <thead>
-
-            <tr>
-              <th>Descrição</th>
-              <th>Valor</th>
-              <th>Categoria</th>
-              <th>Dia</th>
-              <th>Início</th>
-              <th>Fim</th>
-            </tr>
-
-          </thead>
-
-          <tbody id="recBody"></tbody>
-
-        </table>
-
-      </div>
-
-    </section>
-
-
-    <!-- =====================
-         METAS
-    ====================== -->
-
-    <section
-      id="metas"
-      class="page hidden"
-    >
-
-      <h2>Metas</h2>
-
-      <div class="card">
-
-        <form
-          id="goalForm"
-          class="grid"
-        >
-
-          <label>
-            Meta
-            <input
-              id="goalName"
-              required
-            >
-          </label>
-
-          <label>
-            Objetivo
-            <input
-              id="goalTarget"
-              type="number"
-              step="0.01"
-              required
-            >
-          </label>
-
-          <label>
-            Atual
-            <input
-              id="goalCurrent"
-              type="number"
-              step="0.01"
-              value="0"
-            >
-          </label>
-
-          <label>
-            Prazo
-            <input
-              id="goalDate"
-              type="date"
-            >
-          </label>
-
-          <button
-            class="wide"
-            type="submit"
-          >
-            Cadastrar
-          </button>
-
-        </form>
-
-        <p id="goalMsg"></p>
-
-      </div>
-
-      <div id="goals"></div>
-
-    </section>
-
-
-    <!-- =====================
-         CONTAS
-    ====================== -->
-
-    <section
-      id="contas"
-      class="page hidden"
-    >
-
-      <h2>Contas e patrimônio</h2>
-
-      <div class="card">
-
-        <form
-          id="accountForm"
-          class="grid"
-        >
-
-          <label>
-            Nome
-            <input
-              id="accountName"
-              required
-            >
-          </label>
-
-          <label>
-            Tipo
-
-            <select id="accountType">
-              <option>Conta corrente</option>
-              <option>Poupança</option>
-              <option>Dinheiro</option>
-              <option>Investimento</option>
-              <option>Outro</option>
-            </select>
-
-          </label>
-
-          <label>
-            Saldo inicial
-
-            <input
-              id="accountInitial"
-              type="number"
-              step="0.01"
-              value="0"
-            >
-
-          </label>
-
-          <button
-            class="wide"
-            type="submit"
-          >
-            Cadastrar
-          </button>
-
-        </form>
-
-        <p id="accountMsg"></p>
-
-      </div>
-
-
-      <div class="card table">
-
-        <table>
-
-          <thead>
-
-            <tr>
-              <th>Conta</th>
-              <th>Tipo</th>
-              <th>Inicial</th>
-              <th>Movimentação</th>
-              <th>Atual</th>
-            </tr>
-
-          </thead>
-
-          <tbody id="accountBody"></tbody>
-
-        </table>
-
-      </div>
-
-    </section>
-
-
-    <!-- =====================
-         RELATÓRIOS
-    ====================== -->
-
-    <section
-      id="relatorios"
-      class="page hidden"
-    >
-
-      <h2>Relatórios</h2>
-
-      <div class="card">
-
-        <div class="actions">
-
-          <label>
-            Mês
-
-            <input
-              id="reportMonth"
-              type="month"
-            >
-
-          </label>
-
-          <button
-            id="excel"
-            type="button"
-          >
-            Exportar Excel
-          </button>
-
-          <button
-            id="pdf"
-            class="secondary"
-            type="button"
-          >
-            Gerar PDF
-          </button>
 
         </div>
 
-        <div id="summary"></div>
 
-      </div>
+        <div class="kpis">
+
+          <div>
+            <small>Entradas</small>
+            <strong id="inTotal">R$ 0,00</strong>
+          </div>
+
+          <div>
+            <small>Saídas</small>
+            <strong id="outTotal">R$ 0,00</strong>
+          </div>
+
+          <div>
+            <small>Resultado</small>
+            <strong id="result">R$ 0,00</strong>
+          </div>
+
+          <div>
+            <small>Disponível</small>
+            <strong id="available">R$ 0,00</strong>
+          </div>
+
+        </div>
 
 
-      <div class="card table">
+        <div class="cols">
 
-        <table>
+          <div class="card">
 
-          <thead>
+            <h3>Fluxo</h3>
 
-            <tr>
-              <th>Data</th>
-              <th>Tipo</th>
-              <th>Descrição</th>
-              <th>Categoria</th>
-              <th>Valor</th>
-              <th>Status</th>
-            </tr>
+            <canvas id="flow"></canvas>
 
-          </thead>
+          </div>
 
-          <tbody id="reportBody"></tbody>
 
-        </table>
+          <div class="card">
 
-      </div>
+            <h3>Gastos por categoria</h3>
 
-    </section>
+            <canvas id="cats"></canvas>
 
-  </main>
+          </div>
+
+        </div>
+
+
+        <div class="cols3">
+
+          <div class="card">
+
+            <h3>Contas pendentes</h3>
+
+            <div id="due"></div>
+
+          </div>
+
+
+          <div class="card">
+
+            <h3>Cartões</h3>
+
+            <div id="cardDash"></div>
+
+          </div>
+
+
+          <div class="card">
+
+            <h3>Metas</h3>
+
+            <div id="goalDash"></div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           LANÇAMENTOS
+      ================================================== -->
+
+      <section
+        id="lancamentos"
+        class="page hidden"
+      >
+
+        <h2>Lançamentos</h2>
+
+
+        <div class="card">
+
+          <form
+            id="txForm"
+            class="grid"
+          >
+
+            <input
+              id="txId"
+              type="hidden"
+            >
+
+
+            <label>
+              Tipo
+
+              <select id="txType">
+
+                <option value="saida">
+                  Saída
+                </option>
+
+                <option value="entrada">
+                  Entrada
+                </option>
+
+              </select>
+
+            </label>
+
+
+            <label>
+              Valor
+
+              <input
+                id="txAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+              >
+
+            </label>
+
+
+            <label>
+              Data
+
+              <input
+                id="txDate"
+                type="date"
+                required
+              >
+
+            </label>
+
+
+            <label>
+              Categoria
+
+              <select
+                id="txCat"
+                required
+              ></select>
+
+            </label>
+
+
+            <label>
+              Conta
+
+              <select
+                id="txAccount"
+                required
+              ></select>
+
+            </label>
+
+
+            <label>
+              Cartão
+
+              <select id="txCard">
+
+                <option value="">
+                  Nenhum
+                </option>
+
+              </select>
+
+            </label>
+
+
+            <label>
+              Status
+
+              <select id="txStatus">
+
+                <option value="pago">
+                  Pago/Recebido
+                </option>
+
+                <option value="pendente">
+                  Pendente
+                </option>
+
+              </select>
+
+            </label>
+
+
+            <label>
+              Descrição
+
+              <input
+                id="txDesc"
+                required
+              >
+
+            </label>
+
+
+            <label>
+              Parcelas
+
+              <input
+                id="txInstall"
+                type="number"
+                min="1"
+                value="1"
+              >
+
+            </label>
+
+
+            <label class="wide">
+
+              Observação
+
+              <textarea id="txNotes"></textarea>
+
+            </label>
+
+
+            <button
+              id="txSaveButton"
+              class="wide"
+              type="submit"
+            >
+              Salvar lançamento
+            </button>
+
+
+            <button
+              id="txCancelEdit"
+              class="wide secondary hidden"
+              type="button"
+            >
+              Cancelar edição
+            </button>
+
+          </form>
+
+
+          <p id="txMsg"></p>
+
+        </div>
+
+
+        <div class="card table">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Descrição</th>
+                <th>Categoria</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Parcela</th>
+                <th>Ações</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="txBody"></tbody>
+
+          </table>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           CARTÕES
+      ================================================== -->
+
+      <section
+        id="cartoes"
+        class="page hidden"
+      >
+
+        <h2>Cartões</h2>
+
+        <div class="card">
+
+          <form
+            id="cardForm"
+            class="grid"
+          >
+
+            <label>
+              Nome
+              <input
+                id="cardName"
+                required
+              >
+            </label>
+
+            <label>
+              Limite
+              <input
+                id="cardLimit"
+                type="number"
+                step="0.01"
+                required
+              >
+            </label>
+
+            <label>
+              Fechamento
+              <input
+                id="cardClose"
+                type="number"
+                min="1"
+                max="31"
+                required
+              >
+            </label>
+
+            <label>
+              Vencimento
+              <input
+                id="cardDue"
+                type="number"
+                min="1"
+                max="31"
+                required
+              >
+            </label>
+
+            <button
+              class="wide"
+              type="submit"
+            >
+              Cadastrar
+            </button>
+
+          </form>
+
+          <p id="cardMsg"></p>
+
+        </div>
+
+
+        <div class="card table">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Cartão</th>
+                <th>Limite</th>
+                <th>Usado</th>
+                <th>Disponível</th>
+                <th>Fechamento</th>
+                <th>Vencimento</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="cardBody"></tbody>
+
+          </table>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           RECORRENTES
+      ================================================== -->
+
+      <section
+        id="recorrentes"
+        class="page hidden"
+      >
+
+        <h2>Contas recorrentes</h2>
+
+        <div class="card">
+
+          <form
+            id="recForm"
+            class="grid"
+          >
+
+            <label>
+              Descrição
+              <input
+                id="recDesc"
+                required
+              >
+            </label>
+
+            <label>
+              Valor
+              <input
+                id="recAmount"
+                type="number"
+                step="0.01"
+                required
+              >
+            </label>
+
+            <label>
+              Categoria
+              <select
+                id="recCat"
+                required
+              ></select>
+            </label>
+
+            <label>
+              Dia
+              <input
+                id="recDay"
+                type="number"
+                min="1"
+                max="31"
+                required
+              >
+            </label>
+
+            <label>
+              Início
+              <input
+                id="recStart"
+                type="date"
+                required
+              >
+            </label>
+
+            <label>
+              Fim
+              <input
+                id="recEnd"
+                type="date"
+              >
+            </label>
+
+            <button
+              class="wide"
+              type="submit"
+            >
+              Cadastrar
+            </button>
+
+          </form>
+
+          <p id="recMsg"></p>
+
+        </div>
+
+
+        <div class="card table">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th>Categoria</th>
+                <th>Dia</th>
+                <th>Início</th>
+                <th>Fim</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="recBody"></tbody>
+
+          </table>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           METAS
+      ================================================== -->
+
+      <section
+        id="metas"
+        class="page hidden"
+      >
+
+        <h2>Metas</h2>
+
+        <div class="card">
+
+          <form
+            id="goalForm"
+            class="grid"
+          >
+
+            <label>
+              Meta
+              <input
+                id="goalName"
+                required
+              >
+            </label>
+
+            <label>
+              Objetivo
+              <input
+                id="goalTarget"
+                type="number"
+                step="0.01"
+                required
+              >
+            </label>
+
+            <label>
+              Atual
+              <input
+                id="goalCurrent"
+                type="number"
+                step="0.01"
+                value="0"
+              >
+            </label>
+
+            <label>
+              Prazo
+              <input
+                id="goalDate"
+                type="date"
+              >
+            </label>
+
+            <button
+              class="wide"
+              type="submit"
+            >
+              Cadastrar
+            </button>
+
+          </form>
+
+          <p id="goalMsg"></p>
+
+        </div>
+
+        <div id="goals"></div>
+
+      </section>
+
+
+      <!-- =================================================
+           CONTAS
+      ================================================== -->
+
+      <section
+        id="contas"
+        class="page hidden"
+      >
+
+        <h2>Contas e patrimônio</h2>
+
+        <div class="card">
+
+          <form
+            id="accountForm"
+            class="grid"
+          >
+
+            <label>
+              Nome
+              <input
+                id="accountName"
+                required
+              >
+            </label>
+
+            <label>
+              Tipo
+
+              <select id="accountType">
+                <option>Conta corrente</option>
+                <option>Poupança</option>
+                <option>Dinheiro</option>
+                <option>Investimento</option>
+                <option>Outro</option>
+              </select>
+
+            </label>
+
+            <label>
+              Saldo inicial
+
+              <input
+                id="accountInitial"
+                type="number"
+                step="0.01"
+                value="0"
+              >
+
+            </label>
+
+            <button
+              class="wide"
+              type="submit"
+            >
+              Cadastrar
+            </button>
+
+          </form>
+
+          <p id="accountMsg"></p>
+
+        </div>
+
+
+        <div class="card table">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Conta</th>
+                <th>Tipo</th>
+                <th>Inicial</th>
+                <th>Movimentação</th>
+                <th>Atual</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="accountBody"></tbody>
+
+          </table>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           RELATÓRIOS
+      ================================================== -->
+
+      <section
+        id="relatorios"
+        class="page hidden"
+      >
+
+        <h2>Relatórios</h2>
+
+        <div class="card">
+
+          <div class="actions">
+
+            <label>
+              Mês
+
+              <input
+                id="reportMonth"
+                type="month"
+              >
+
+            </label>
+
+
+            <button
+              id="excel"
+              type="button"
+            >
+              Exportar Excel
+            </button>
+
+
+            <button
+              id="pdf"
+              class="secondary"
+              type="button"
+            >
+              Gerar PDF
+            </button>
+
+          </div>
+
+
+          <div id="summary"></div>
+
+        </div>
+
+
+        <div class="card table">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Descrição</th>
+                <th>Categoria</th>
+                <th>Valor</th>
+                <th>Status</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="reportBody"></tbody>
+
+          </table>
+
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
 
 </div>
 
-  </div>  <!-- =========================
-       SCRIPTS
-  ========================== -->  <script src="js/config.js"></script>  <script src="js/app.js"></script></body>
+
+<!-- =====================================================
+     CONFIGURAÇÃO
+     TEM QUE VIR ANTES DO APP.JS
+====================================================== -->
+
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+
+</body>
 </html>
