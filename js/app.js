@@ -1693,99 +1693,1006 @@ function pdf() {
     $("reportMonth").value ||
     thisMonth;
 
-
   const rows =
     txs.filter(
       t =>
-        t.transaction_date.startsWith(
-          month
-        )
+        t.transaction_date &&
+        t.transaction_date.startsWith(month)
     );
 
+  /* =====================================================
+     DADOS DO RELATÓRIO
+  ===================================================== */
 
   const entries =
     rows
       .filter(t => t.type === "entrada")
       .reduce(
         (sum, t) =>
-          sum + Number(t.amount),
+          sum + Number(t.amount || 0),
         0
       );
-
 
   const exits =
     rows
       .filter(t => t.type === "saida")
       .reduce(
         (sum, t) =>
-          sum + Number(t.amount),
+          sum + Number(t.amount || 0),
         0
       );
 
+  const result =
+    entries - exits;
+
+  const pending =
+    rows
+      .filter(
+        t =>
+          t.type === "saida" &&
+          t.status === "pendente"
+      )
+      .reduce(
+        (sum, t) =>
+          sum + Number(t.amount || 0),
+        0
+      );
+
+
+  /* =====================================================
+     CATEGORIAS
+  ===================================================== */
+
+  const categoryTotals = {};
+
+  rows
+    .filter(t => t.type === "saida")
+    .forEach(t => {
+
+      const category =
+        t.categories?.name ||
+        "Sem categoria";
+
+      categoryTotals[category] =
+        (
+          categoryTotals[category] || 0
+        ) +
+        Number(t.amount || 0);
+
+    });
+
+
+  const categoryRanking =
+    Object.entries(categoryTotals)
+      .sort((a, b) => b[1] - a[1]);
+
+
+  const largestCategory =
+    categoryRanking.length
+      ? categoryRanking[0]
+      : null;
+
+
+  /* =====================================================
+     FORMATAÇÃO
+  ===================================================== */
+
+  const formatMoney =
+    value =>
+      Number(value || 0).toLocaleString(
+        "pt-BR",
+        {
+          style: "currency",
+          currency: "BRL"
+        }
+      );
+
+
+  const formatDate =
+    value => {
+
+      if (!value) return "-";
+
+      const parts =
+        value.split("-");
+
+      if (parts.length !== 3)
+        return value;
+
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+    };
+
+
+  const monthName =
+    new Date(
+      `${month}-01T12:00:00`
+    ).toLocaleDateString(
+      "pt-BR",
+      {
+        month: "long",
+        year: "numeric"
+      }
+    );
+
+
+  /* =====================================================
+     PDF
+  ===================================================== */
 
   const JsPDF =
     window.jspdf.jsPDF;
 
   const doc =
-    new JsPDF();
+    new JsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4"
+    });
 
+
+  const pageWidth =
+    doc.internal.pageSize.getWidth();
+
+  const pageHeight =
+    doc.internal.pageSize.getHeight();
+
+
+  let y = 0;
+
+
+  /* =====================================================
+     CABEÇALHO
+  ===================================================== */
+
+  doc.setFillColor(
+    8,
+    13,
+    30
+  );
+
+  doc.rect(
+    0,
+    0,
+    pageWidth,
+    43,
+    "F"
+  );
+
+
+  doc.setTextColor(
+    255,
+    255,
+    255
+  );
+
+  doc.setFont(
+    "helvetica",
+    "bold"
+  );
+
+  doc.setFontSize(22);
 
   doc.text(
-    "Relatório Financeiro Pessoal",
-    14,
-    18
+    "MEU FINANCEIRO",
+    16,
+    17
   );
 
 
   doc.setFontSize(10);
 
+  doc.setFont(
+    "helvetica",
+    "normal"
+  );
+
+  doc.setTextColor(
+    165,
+    180,
+    252
+  );
 
   doc.text(
-    `Mês: ${month}`,
-    14,
-    27
+    "RELATÓRIO FINANCEIRO",
+    16,
+    25
   );
 
 
+  doc.setTextColor(
+    255,
+    255,
+    255
+  );
+
+  doc.setFontSize(11);
+
   doc.text(
-    `Entradas: ${money(entries)}  Saídas: ${money(exits)}  Resultado: ${money(entries - exits)}`,
-    14,
-    36
+    monthName.toUpperCase(),
+    pageWidth - 16,
+    17,
+    {
+      align: "right"
+    }
   );
 
 
-  let y = 47;
+  doc.setFontSize(8);
+
+  doc.setTextColor(
+    148,
+    163,
+    184
+  );
+
+  doc.text(
+    `Gerado em ${formatDate(today)}`,
+    pageWidth - 16,
+    25,
+    {
+      align: "right"
+    }
+  );
 
 
-  rows.forEach(t => {
+  y = 53;
 
-    if (y > 285) {
 
-      doc.addPage();
+  /* =====================================================
+     TÍTULO
+  ===================================================== */
 
-      y = 15;
+  doc.setTextColor(
+    15,
+    23,
+    42
+  );
 
+  doc.setFont(
+    "helvetica",
+    "bold"
+  );
+
+  doc.setFontSize(15);
+
+  doc.text(
+    "Visão geral",
+    16,
+    y
+  );
+
+
+  y += 9;
+
+
+  /* =====================================================
+     CARDS DE RESUMO
+  ===================================================== */
+
+  const cardGap = 5;
+
+  const cardWidth =
+    (pageWidth - 32 - cardGap * 2) / 3;
+
+  const cardHeight = 25;
+
+
+  const summaryCards = [
+
+    {
+      title: "ENTRADAS",
+      value: formatMoney(entries),
+      color: [16, 185, 129]
+    },
+
+    {
+      title: "SAÍDAS",
+      value: formatMoney(exits),
+      color: [244, 63, 94]
+    },
+
+    {
+      title: "RESULTADO",
+      value: formatMoney(result),
+      color:
+        result >= 0
+          ? [99, 102, 241]
+          : [244, 63, 94]
     }
 
+  ];
+
+
+  summaryCards.forEach(
+    (card, index) => {
+
+      const x =
+        16 +
+        index *
+        (cardWidth + cardGap);
+
+
+      doc.setFillColor(
+        248,
+        250,
+        252
+      );
+
+      doc.roundedRect(
+        x,
+        y,
+        cardWidth,
+        cardHeight,
+        3,
+        3,
+        "F"
+      );
+
+
+      doc.setFillColor(
+        ...card.color
+      );
+
+      doc.roundedRect(
+        x,
+        y,
+        2,
+        cardHeight,
+        1,
+        1,
+        "F"
+      );
+
+
+      doc.setTextColor(
+        100,
+        116,
+        139
+      );
+
+      doc.setFontSize(7);
+
+      doc.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      doc.text(
+        card.title,
+        x + 7,
+        y + 8
+      );
+
+
+      doc.setTextColor(
+        15,
+        23,
+        42
+      );
+
+      doc.setFontSize(12);
+
+      doc.text(
+        card.value,
+        x + 7,
+        y + 18
+      );
+
+    }
+  );
+
+
+  y += 35;
+
+
+  /* =====================================================
+     RESUMO SECUNDÁRIO
+  ===================================================== */
+
+  doc.setFillColor(
+    248,
+    250,
+    252
+  );
+
+  doc.roundedRect(
+    16,
+    y,
+    pageWidth - 32,
+    25,
+    3,
+    3,
+    "F"
+  );
+
+
+  doc.setTextColor(
+    71,
+    85,
+    105
+  );
+
+  doc.setFontSize(8);
+
+  doc.setFont(
+    "helvetica",
+    "normal"
+  );
+
+  doc.text(
+    `LANÇAMENTOS: ${rows.length}`,
+    23,
+    y + 9
+  );
+
+  doc.text(
+    `PENDÊNCIAS: ${formatMoney(pending)}`,
+    23,
+    y + 17
+  );
+
+
+  const categoryText =
+    largestCategory
+      ? `MAIOR CATEGORIA: ${largestCategory[0]}`
+      : "MAIOR CATEGORIA: -";
+
+
+  doc.text(
+    categoryText,
+    pageWidth / 2 + 5,
+    y + 9
+  );
+
+
+  const average =
+    rows.length
+      ? (entries + exits) / rows.length
+      : 0;
+
+
+  doc.text(
+    `MÉDIA POR LANÇAMENTO: ${formatMoney(average)}`,
+    pageWidth / 2 + 5,
+    y + 17
+  );
+
+
+  y += 35;
+
+
+  /* =====================================================
+     ANÁLISE POR CATEGORIA
+  ===================================================== */
+
+  doc.setTextColor(
+    15,
+    23,
+    42
+  );
+
+  doc.setFont(
+    "helvetica",
+    "bold"
+  );
+
+  doc.setFontSize(13);
+
+  doc.text(
+    "Despesas por categoria",
+    16,
+    y
+  );
+
+
+  y += 7;
+
+
+  if (categoryRanking.length === 0) {
+
+    doc.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    doc.setFontSize(9);
+
+    doc.setTextColor(
+      100,
+      116,
+      139
+    );
 
     doc.text(
-      `${t.transaction_date} | ${t.type} | ${String(t.description).slice(0, 25)} | ${money(t.amount)}`,
-      14,
-      y
+      "Nenhuma despesa registrada neste período.",
+      16,
+      y + 7
+    );
+
+    y += 16;
+
+  } else {
+
+    categoryRanking
+      .slice(0, 6)
+      .forEach(
+        ([name, value]) => {
+
+          const percentage =
+            exits > 0
+              ? value / exits
+              : 0;
+
+
+          doc.setFont(
+            "helvetica",
+            "normal"
+          );
+
+          doc.setFontSize(8);
+
+          doc.setTextColor(
+            51,
+            65,
+            85
+          );
+
+          doc.text(
+            String(name).slice(0, 25),
+            16,
+            y + 5
+          );
+
+
+          doc.text(
+            formatMoney(value),
+            pageWidth - 16,
+            y + 5,
+            {
+              align: "right"
+            }
+          );
+
+
+          const barWidth =
+            pageWidth - 80;
+
+          const filled =
+            barWidth * percentage;
+
+
+          doc.setFillColor(
+            226,
+            232,
+            240
+          );
+
+          doc.roundedRect(
+            55,
+            y + 1,
+            barWidth,
+            4,
+            2,
+            2,
+            "F"
+          );
+
+
+          doc.setFillColor(
+            99,
+            102,
+            241
+          );
+
+          if (filled > 0) {
+
+            doc.roundedRect(
+              55,
+              y + 1,
+              Math.max(
+                2,
+                filled
+              ),
+              4,
+              2,
+              2,
+              "F"
+            );
+
+          }
+
+
+          doc.setTextColor(
+            100,
+            116,
+            139
+          );
+
+          doc.setFontSize(7);
+
+          doc.text(
+            `${(percentage * 100).toFixed(1)}%`,
+            pageWidth - 16,
+            y + 11,
+            {
+              align: "right"
+            }
+          );
+
+
+          y += 15;
+
+        }
+      );
+
+  }
+
+
+  y += 5;
+
+
+  /* =====================================================
+     NOVA PÁGINA — LANÇAMENTOS
+  ===================================================== */
+
+  doc.addPage();
+
+
+  y = 18;
+
+
+  doc.setFillColor(
+    8,
+    13,
+    30
+  );
+
+  doc.rect(
+    0,
+    0,
+    pageWidth,
+    28,
+    "F"
+  );
+
+
+  doc.setTextColor(
+    255,
+    255,
+    255
+  );
+
+  doc.setFont(
+    "helvetica",
+    "bold"
+  );
+
+  doc.setFontSize(15);
+
+  doc.text(
+    "MEU FINANCEIRO",
+    16,
+    12
+  );
+
+
+  doc.setFontSize(9);
+
+  doc.setFont(
+    "helvetica",
+    "normal"
+  );
+
+  doc.setTextColor(
+    165,
+    180,
+    252
+  );
+
+  doc.text(
+    `LANÇAMENTOS — ${monthName.toUpperCase()}`,
+    16,
+    20
+  );
+
+
+  y = 38;
+
+
+  /* =====================================================
+     TABELA
+  ===================================================== */
+
+  const columns = [
+    "Data",
+    "Tipo",
+    "Descrição",
+    "Categoria",
+    "Conta",
+    "Valor",
+    "Status"
+  ];
+
+
+  const widths = [
+    19,
+    17,
+    40,
+    32,
+    28,
+    27,
+    22
+  ];
+
+
+  function drawTableHeader() {
+
+    let x = 10;
+
+    doc.setFillColor(
+      15,
+      23,
+      42
+    );
+
+    doc.rect(
+      10,
+      y,
+      pageWidth - 20,
+      9,
+      "F"
     );
 
 
-    y += 6;
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
 
-  });
+    doc.setFontSize(7);
 
+    doc.setTextColor(
+      255,
+      255,
+      255
+    );
+
+
+    columns.forEach(
+      (column, index) => {
+
+        doc.text(
+          column.toUpperCase(),
+          x + 2,
+          y + 6
+        );
+
+        x += widths[index];
+
+      }
+    );
+
+
+    y += 9;
+
+  }
+
+
+  drawTableHeader();
+
+
+  doc.setFont(
+    "helvetica",
+    "normal"
+  );
+
+  doc.setFontSize(7);
+
+
+  if (rows.length === 0) {
+
+    doc.setTextColor(
+      100,
+      116,
+      139
+    );
+
+    doc.text(
+      "Nenhum lançamento encontrado.",
+      14,
+      y + 10
+    );
+
+  } else {
+
+    rows.forEach(
+      (t, index) => {
+
+        if (
+          y >
+          pageHeight - 20
+        ) {
+
+          doc.addPage();
+
+          y = 18;
+
+          drawTableHeader();
+
+        }
+
+
+        if (index % 2 === 0) {
+
+          doc.setFillColor(
+            248,
+            250,
+            252
+          );
+
+          doc.rect(
+            10,
+            y,
+            pageWidth - 20,
+            9,
+            "F"
+          );
+
+        }
+
+
+        const values = [
+
+          formatDate(
+            t.transaction_date
+          ),
+
+          t.type === "entrada"
+            ? "Entrada"
+            : "Saída",
+
+          String(
+            t.description || "-"
+          ).slice(0, 22),
+
+          String(
+            t.categories?.name || "-"
+          ).slice(0, 18),
+
+          String(
+            t.accounts?.name || "-"
+          ).slice(0, 15),
+
+          formatMoney(
+            t.amount
+          ),
+
+          String(
+            t.status || "-"
+          ).slice(0, 11)
+
+        ];
+
+
+        let x = 10;
+
+
+        values.forEach(
+          (value, colIndex) => {
+
+            if (
+              colIndex === 5
+            ) {
+
+              doc.text(
+                value,
+                x + widths[colIndex] - 2,
+                y + 6,
+                {
+                  align: "right"
+                }
+              );
+
+            } else {
+
+              doc.text(
+                value,
+                x + 2,
+                y + 6
+              );
+
+            }
+
+
+            x +=
+              widths[colIndex];
+
+          }
+        );
+
+
+        y += 9;
+
+      }
+    );
+
+  }
+
+
+  /* =====================================================
+     RODAPÉ EM TODAS AS PÁGINAS
+  ===================================================== */
+
+  const totalPages =
+    doc.internal.getNumberOfPages();
+
+
+  for (
+    let page = 1;
+    page <= totalPages;
+    page++
+  ) {
+
+    doc.setPage(page);
+
+
+    doc.setDrawColor(
+      226,
+      232,
+      240
+    );
+
+    doc.line(
+      12,
+      pageHeight - 12,
+      pageWidth - 12,
+      pageHeight - 12
+    );
+
+
+    doc.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    doc.setFontSize(7);
+
+    doc.setTextColor(
+      100,
+      116,
+      139
+    );
+
+
+    doc.text(
+      "Meu Financeiro • Relatório gerado automaticamente",
+      12,
+      pageHeight - 7
+    );
+
+
+    doc.text(
+      `Página ${page} de ${totalPages}`,
+      pageWidth - 12,
+      pageHeight - 7,
+      {
+        align: "right"
+      }
+    );
+
+  }
+
+
+  /* =====================================================
+     SALVAR
+  ===================================================== */
 
   doc.save(
-    `financeiro-${month}.pdf`
+    `meu-financeiro-${month}.pdf`
   );
 
 }
-
 
 /* =========================================================
    NAVEGAÇÃO
