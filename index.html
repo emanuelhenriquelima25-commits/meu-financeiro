@@ -1,11 +1,11 @@
 <!doctype html><html lang="pt-BR"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#070b17">
 <title>Meu Financeiro</title><link rel="stylesheet" href="css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script></head><body>
-<div id="loginView" class="auth"><div class="card authcard"><h1>💰 Meu Financeiro</h1>
+<div id="loginView" class="auth"><div class="card authcard"><h1>Meu Financeiro</h1><p style="color:#94a3b8;margin:0 0 22px;font-size:14px">Sua vida financeira, organizada em um só lugar.</p>
 <form id="loginForm"><input id="loginEmail" type="email" placeholder="E-mail" required><input id="loginPassword" type="password" placeholder="Senha" required><button>Entrar</button></form>
 <hr><form id="signupForm"><input id="signupName" placeholder="Nome" required><input id="signupEmail" type="email" placeholder="E-mail" required><input id="signupPassword" type="password" placeholder="Senha" minlength="6" required><button class="secondary">Criar conta</button></form><p id="authMsg"></p></div></div>
 <div id="app" class="hidden"><header><b>💰 Meu Financeiro</b><span><span id="userName"></span> <button id="logout" class="danger">Sair</button></span></header>
